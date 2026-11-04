@@ -15,14 +15,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# NOTE: do NOT use bare names like TARGET/SUBTARGET/DEVICE here.
+# OpenWrt's build system passes its own TARGET (the board, e.g. "rockchip") into the
+# environment of every recipe, and autotools' configure picks up a preset $TARGET:
+# libffi would then build in a directory named "rockchip" instead of the target
+# triplet and the package would fail to install fficonfig.h.
 env:
-  TARGET: rockchip
-  SUBTARGET: armv8
-  DEVICE: friendlyarm_nanopi-r5s
+  OW_TARGET: rockchip
+  OW_SUBTARGET: armv8
+  OW_DEVICE: friendlyarm_nanopi-r5s
 
 jobs:
   build:
-    name: Build $TARGET/$SUBTARGET/$DEVICE
+    name: Build rockchip/armv8/friendlyarm_nanopi-r5s
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
@@ -38,9 +43,9 @@ jobs:
           path: |
             dl
             ~/.ccache
-          key: ${{ runner.os }}-${{ env.TARGET }}-${{ env.SUBTARGET }}-${{ env.DEVICE }}-${{ hashFiles('feeds.conf.default') }}
+          key: ${{ runner.os }}-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}-${{ hashFiles('feeds.conf.default') }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.TARGET }}-${{ env.SUBTARGET }}-${{ env.DEVICE }}-
+            ${{ runner.os }}-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}-
 
       - name: Install build dependencies
         run: |
@@ -84,8 +89,8 @@ jobs:
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-${{ env.TARGET }}-${{ env.SUBTARGET }}-${{ env.DEVICE }}
+          name: immortalwrt-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}
           path: |
-            bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/*sysupgrade.img.gz
-            bin/targets/${{ env.TARGET }}/${{ env.SUBTARGET }}/*.manifest
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*sysupgrade.img.gz
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*.manifest
           if-no-files-found: error
