@@ -87,7 +87,7 @@ so they can be built without adding any extra feed:
 
 | Package | What it is | Upstream project |
 |---|---|---|
-| `honk` | eBPF transparent proxy core (dae-compatible), Rust, ships a prebuilt aarch64 binary | [daeuniverse/honk](https://github.com/daeuniverse/honk) — GPL-3.0-only |
+| `honk` | eBPF transparent proxy core (dae-compatible), Rust, ships a prebuilt core | [daeuniverse/honk](https://github.com/daeuniverse/honk) — GPL-3.0-only |
 | `luci-app-honk` | "doona", the static web UI of honk, packaged as a LuCI app | [Zakkaus/doona](https://github.com/Zakkaus/doona) — GPL-3.0-only |
 | `vmlinux-btf` | optional *detached* kernel BTF, a fallback for kernels built without `CONFIG_DEBUG_INFO_BTF` | `kenzok8/small-package` |
 
@@ -96,12 +96,27 @@ never committed `honk/files/update.sh` even though its Makefile installs it and 
 needs it (`/usr/share/honk/update.sh` is called by `job.sh` and by `usr/libexec/rpcd/honk`);
 the file was restored from the complete `kenzok8/small` repository here.
 
+### Which devices can run it
+
+`honk` is a CO-RE eBPF program, so it needs a kernel with BTF, and the prebuilt cores exist
+for three architectures only:
+
+| Architecture | Prebuilt core | Subtargets in this tree |
+|---|---|---|
+| x86_64 | `honk-core-…-x86_64` | `x86/64` |
+| aarch64 | `honk-core-…-aarch64` | `airoha/an7581`, `airoha/an7583`, `bcm27xx/bcm2710`, `bcm27xx/bcm2711`, `bcm27xx/bcm2712`, `bcm4908/generic`, `imx/cortexa53`, `layerscape/armv8_64b`, `mediatek/filogic`, `mediatek/mt7622`, `microchipsw/lan969x`, `mvebu/cortexa53`, `mvebu/cortexa72`, `qualcommax/ipq807x`, `qualcommax/ipq60xx`, `qualcommax/ipq50xx`, `qualcommbe/ipq95xx`, `rockchip/armv8`, `sunxi/cortexa53` |
+| armv7-A | `honk-core-…-armv7` | `airoha/en7523`, `at91/sama7`, `bcm27xx/bcm2709`, `bcm53xx/generic`, `imx/cortexa7`, `imx/cortexa9`, `ipq40xx/generic`, `ipq40xx/chromium`, `ipq40xx/mikrotik`, `ipq806x/generic`, `ipq806x/chromium`, `layerscape/armv7`, `mediatek/mt7623`, `mediatek/mt7629`, `mvebu/cortexa9`, `mxs/generic`, `omap/generic`, `rockchip/armv7`, `stm32/stm32mp1`, `sunxi/cortexa8`, `sunxi/cortexa7`, `zynq/generic` |
+
+That is 42 subtargets and 888 device profiles. `honk` is only *offered* on those subtargets —
+`package/honk/Makefile` names them in its `DEPENDS` — and on the 32-bit ARM ones the build
+stops with a clear message if the CPU turns out to be older than ARMv7-A.
+
 ### The kernel must ship BTF
 
-`honk` is a CO-RE eBPF program, so at runtime it requires `/sys/kernel/btf/vmlinux`. That
-file only exists when the kernel itself is compiled with `CONFIG_DEBUG_INFO_BTF=y` — a
-detached BTF (`/usr/lib/debug/boot/vmlinux-*`, provided by the `vmlinux-btf` package) does
-**not** satisfy that check.
+`honk` needs `/sys/kernel/btf/vmlinux` at runtime, and that file only exists when the
+kernel itself is compiled with `CONFIG_DEBUG_INFO_BTF=y`. A detached BTF
+(`/usr/lib/debug/boot/vmlinux-*`, provided by the `vmlinux-btf` package) does **not**
+satisfy that check.
 
 Upstream only builds a BTF kernel for the buildbot:
 
@@ -109,13 +124,13 @@ Upstream only builds a BTF kernel for the buildbot:
 default y if (TARGET_armsr || ... || TARGET_rockchip || ...) && BUILDBOT
 ```
 
-This branch changes `config/Config-kernel.in` so that **rockchip always builds a BTF kernel**
-(`&& (BUILDBOT || TARGET_rockchip)`), and keeps full debug info for it
-(`CONFIG_DEBUG_INFO_REDUCED` is off for rockchip) because `DEBUG_INFO_BTF` depends on
+This branch changes `config/Config-kernel.in` so that **every target that can run honk
+builds a BTF kernel by default**, and keeps the full debug info for it
+(`CONFIG_DEBUG_INFO_REDUCED` is off there) because `DEBUG_INFO_BTF` depends on
 `!DEBUG_INFO_REDUCED`.
 
-The `pahole` tool comes from the tree itself (`tools/dwarves`, pulled in by
-`select DWARVES`), so no extra host package has to be installed.
+`pahole` comes from the tree itself (`tools/dwarves`, pulled in by `select DWARVES`), so no
+extra host package has to be installed.
 
 Side effects of the change:
 
@@ -130,19 +145,25 @@ git clone -b master-Honk+Doona https://github.com/Hansen1018/immortalwrt.git
 cd immortalwrt
 ./scripts/feeds update -a && ./scripts/feeds install -a
 
+# the target and the device, e.g. the FriendlyARM NanoPi R5S
 cat > .config <<'EOF'
 CONFIG_TARGET_rockchip=y
 CONFIG_TARGET_rockchip_armv8=y
 CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r5s=y
-CONFIG_PACKAGE_honk=y
-CONFIG_PACKAGE_luci-app-honk=y
 EOF
+
+# plus honk + doona and a BTF kernel
+cat config/honk-doona.config >> .config
 
 make defconfig
 make -j$(nproc)
 ```
 
-`honk` and `luci-app-honk` are part of the default package list of the
+`config/honk-doona.config` is a ready-made seed with `CONFIG_PACKAGE_honk=y`,
+`CONFIG_PACKAGE_luci-app-honk=y` and `CONFIG_KERNEL_DEBUG_INFO_BTF=y`; append it to your
+own `.config` for any device from the table above.
+
+`honk` and `luci-app-honk` are also part of the default package list of the
 `friendlyarm_nanopi-r5s` profile (`target/linux/rockchip/image/armv8.mk`), so they are
 selected automatically as soon as that device profile is chosen.
 

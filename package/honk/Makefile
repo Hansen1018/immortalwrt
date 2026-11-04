@@ -38,6 +38,10 @@ else ifeq ($(filter aarch64%,$(ARCH_PACKAGES)),$(ARCH_PACKAGES))
   HONK_ASSET:=$(HONK_ASSET_AARCH64)
   HONK_HASH:=$(HONK_HASH_AARCH64)
 else ifeq ($(filter arm_%,$(ARCH_PACKAGES)),$(ARCH_PACKAGES))
+  # the prebuilt armv7 core needs an ARMv7-A capable CPU
+  ifneq (,$(filter arm_cortex-a4 arm_cortex-a5 arm_arm1176jzf-s arm_arm926 arm_arm926ej-s,$(ARCH_PACKAGES)))
+    $(error honk: the prebuilt core needs an ARMv7-A CPU, $(ARCH_PACKAGES) is too old)
+  endif
   HONK_ASSET:=$(HONK_ASSET_ARMV7)
   HONK_HASH:=$(HONK_HASH_ARMV7)
 endif
@@ -61,7 +65,7 @@ define Package/honk
   TITLE:=Honk transparent proxy core
   URL:=https://github.com/daeuniverse/honk
   # 不直接依赖 libubox：包名带 ABI 日期戳，会锁死固件；脚本只用 jshn 提供的 jshn.sh。
-  DEPENDS:=@(x86_64||aarch64||arm) +ca-bundle +ip-full +ubus +kmod-sched-core +kmod-sched-bpf +kmod-veth +kmod-nft-queue +jsonfilter +jshn +sqlite3-cli +usign +coreutils-stat +v2ray-geoip +v2ray-geosite +@KERNEL_DEBUG_INFO_BTF
+  DEPENDS:=@(x86_64||aarch64||TARGET_airoha_en7523||TARGET_at91_sama7||TARGET_bcm27xx_bcm2709||TARGET_bcm53xx_generic||TARGET_imx_cortexa7||TARGET_imx_cortexa9||TARGET_ipq40xx_generic||TARGET_ipq40xx_chromium||TARGET_ipq40xx_mikrotik||TARGET_ipq806x_generic||TARGET_ipq806x_chromium||TARGET_layerscape_armv7||TARGET_mediatek_mt7623||TARGET_mediatek_mt7629||TARGET_mvebu_cortexa9||TARGET_mxs_generic||TARGET_omap_generic||TARGET_rockchip_armv7||TARGET_stm32_stm32mp1||TARGET_sunxi_cortexa8||TARGET_sunxi_cortexa7||TARGET_zynq_generic)
 endef
 
 define Package/honk/description
