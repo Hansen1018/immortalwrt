@@ -80,6 +80,86 @@ For a list of supported devices see the [OpenWrt Hardware Database](https://open
   - Support Chat: group [@ctcgfw_openwrt_discuss](https://t.me/ctcgfw_openwrt_discuss) on [Telegram](https://telegram.org/).
   - Support Chat: group [#immortalwrt](https://matrix.to/#/#immortalwrt:matrix.org) on [Matrix](https://matrix.org/).
 
+## Honk + Doona (eBPF transparent proxy)
+
+This branch (`master-Honk+Doona`) integrates two upstream projects directly into the tree,
+so they can be built without adding any extra feed:
+
+| Package | What it is | Upstream project |
+|---|---|---|
+| `honk` | eBPF transparent proxy core (dae-compatible), Rust, ships a prebuilt aarch64 binary | [daeuniverse/honk](https://github.com/daeuniverse/honk) — GPL-3.0-only |
+| `luci-app-honk` | "doona", the static web UI of honk, packaged as a LuCI app | [Zakkaus/doona](https://github.com/Zakkaus/doona) — GPL-3.0-only |
+| `vmlinux-btf` | optional *detached* kernel BTF, a fallback for kernels built without `CONFIG_DEBUG_INFO_BTF` | `kenzok8/small-package` |
+
+The packaging is vendored from `kenzok8/small-package`. Note that `kenzok8/small-package`
+never committed `honk/files/update.sh` even though its Makefile installs it and the runtime
+needs it (`/usr/share/honk/update.sh` is called by `job.sh` and by `usr/libexec/rpcd/honk`);
+the file was restored from the complete `kenzok8/small` repository here.
+
+### The kernel must ship BTF
+
+`honk` is a CO-RE eBPF program, so at runtime it requires `/sys/kernel/btf/vmlinux`. That
+file only exists when the kernel itself is compiled with `CONFIG_DEBUG_INFO_BTF=y` — a
+detached BTF (`/usr/lib/debug/boot/vmlinux-*`, provided by the `vmlinux-btf` package) does
+**not** satisfy that check.
+
+Upstream only builds a BTF kernel for the buildbot:
+
+```
+default y if (TARGET_armsr || ... || TARGET_rockchip || ...) && BUILDBOT
+```
+
+This branch changes `config/Config-kernel.in` so that **rockchip always builds a BTF kernel**
+(`&& (BUILDBOT || TARGET_rockchip)`), and keeps full debug info for it
+(`CONFIG_DEBUG_INFO_REDUCED` is off for rockchip) because `DEBUG_INFO_BTF` depends on
+`!DEBUG_INFO_REDUCED`.
+
+The `pahole` tool comes from the tree itself (`tools/dwarves`, pulled in by
+`select DWARVES`), so no extra host package has to be installed.
+
+Side effects of the change:
+
+* the kernel image grows by about 4 MB (the `.BTF` section),
+* the kernel keeps full DWARF debug info, which makes the kernel build slower and bigger
+  in the build directory (the shipped image is not affected by the DWARF part).
+
+### Build it yourself
+
+```bash
+git clone -b master-Honk+Doona https://github.com/Hansen1018/immortalwrt.git
+cd immortalwrt
+./scripts/feeds update -a && ./scripts/feeds install -a
+
+cat > .config <<'EOF'
+CONFIG_TARGET_rockchip=y
+CONFIG_TARGET_rockchip_armv8=y
+CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r5s=y
+CONFIG_PACKAGE_honk=y
+CONFIG_PACKAGE_luci-app-honk=y
+EOF
+
+make defconfig
+make -j$(nproc)
+```
+
+`honk` and `luci-app-honk` are part of the default package list of the
+`friendlyarm_nanopi-r5s` profile (`target/linux/rockchip/image/armv8.mk`), so they are
+selected automatically as soon as that device profile is chosen.
+
+### GitHub Actions
+
+`.github/workflows/build-honk-doona.yml` builds the same image on every push to this
+branch and attaches the `*-sysupgrade.img.gz` to the run. It can also be started manually
+from the *Actions* tab.
+
+### After flashing
+
+* the web UI is at `http://<router-ip>/cgi-bin/luci/admin/services/honk/`
+* `honk` needs the bpffs mounted at `/sys/fs/bpf` (OpenWrt's `/etc/init.d/boot` does that),
+  the kernel modules `sch_ingress`, `cls_bpf`, `veth`, `nft_queue` and `nfnetlink_queue`
+  (installed by `kmod-sched-core`, `kmod-sched-bpf`, `kmod-veth`, `kmod-nft-queue`) and
+  `ip` from `ip-full`.
+
 ## License
 ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html).
 

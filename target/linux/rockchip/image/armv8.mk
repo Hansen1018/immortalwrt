@@ -265,7 +265,9 @@ define Device/friendlyarm_nanopi-r5s
   $(Device/rk3568)
   DEVICE_VENDOR := FriendlyARM
   DEVICE_MODEL := NanoPi R5S
-  DEVICE_PACKAGES := kmod-button-hotplug kmod-input-adc-keys kmod-r8125
+  # honk (eBPF transparent proxy core) + doona (its static web UI)
+  DEVICE_PACKAGES := kmod-button-hotplug kmod-input-adc-keys kmod-r8125 \
+                   honk luci-app-honk
 endef
 TARGET_DEVICES += friendlyarm_nanopi-r5s
 
