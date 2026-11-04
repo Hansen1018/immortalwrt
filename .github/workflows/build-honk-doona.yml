@@ -2,6 +2,19 @@ name: Build Honk+Doona firmware
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'OpenWrt target (e.g. rockchip, x86, qualcommax)'
+        required: false
+        default: rockchip
+      subtarget:
+        description: 'OpenWrt subtarget (e.g. armv8, 64, ipq807x)'
+        required: false
+        default: armv8
+      device:
+        description: 'Device profile (e.g. friendlyarm_nanopi-r5s, generic)'
+        required: false
+        default: friendlyarm_nanopi-r5s
   push:
     branches:
       - master-Honk+Doona
@@ -21,13 +34,13 @@ concurrency:
 # libffi would then build in a directory named "rockchip" instead of the target
 # triplet and the package would fail to install fficonfig.h.
 env:
-  OW_TARGET: rockchip
-  OW_SUBTARGET: armv8
-  OW_DEVICE: friendlyarm_nanopi-r5s
+  OW_TARGET: ${{ github.event.inputs.target || 'rockchip' }}
+  OW_SUBTARGET: ${{ github.event.inputs.subtarget || 'armv8' }}
+  OW_DEVICE: ${{ github.event.inputs.device || 'friendlyarm_nanopi-r5s' }}
 
 jobs:
   build:
-    name: Build rockchip/armv8/friendlyarm_nanopi-r5s
+    name: Build ${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/${{ env.OW_DEVICE }}
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
@@ -66,17 +79,14 @@ jobs:
 
       - name: Configure (honk + doona, BTF kernel)
         run: |
-          cat > .config <<'EOF'
-          CONFIG_TARGET_rockchip=y
-          CONFIG_TARGET_rockchip_armv8=y
-          CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r5s=y
-          CONFIG_PACKAGE_honk=y
-          CONFIG_PACKAGE_luci-app-honk=y
-          CONFIG_KERNEL_DEBUG_INFO_BTF=y
-          # CONFIG_KERNEL_DEBUG_INFO_REDUCED is not set
+          cat > .config <<EOF
+          CONFIG_TARGET_${OW_TARGET}=y
+          CONFIG_TARGET_${OW_TARGET}_${OW_SUBTARGET}=y
+          CONFIG_TARGET_${OW_TARGET}_${OW_SUBTARGET}_DEVICE_${OW_DEVICE}=y
           EOF
+          cat config/honk-doona.config >> .config
           make defconfig
-          echo '--- resolved selection ---'
+          echo '--- the resolved selection ---'
           grep -E 'CONFIG_(PACKAGE_(honk|luci-app-honk)|KERNEL_DEBUG_INFO_BTF|DWARVES)=' .config
 
       - name: Download sources
