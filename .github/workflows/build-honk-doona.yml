@@ -40,7 +40,8 @@ env:
 
 jobs:
   build:
-    name: Build ${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/${{ env.OW_DEVICE }}
+    # NOTE: the "env" context is not available in a job name, only in the steps.
+    name: Build ${{ github.event.inputs.target || 'rockchip' }}/${{ github.event.inputs.subtarget || 'armv8' }}/${{ github.event.inputs.device || 'friendlyarm_nanopi-r5s' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
@@ -102,5 +103,6 @@ jobs:
           name: immortalwrt-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}
           path: |
             bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*sysupgrade.img.gz
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*sysupgrade.bin
             bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*.manifest
           if-no-files-found: error
