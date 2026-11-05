@@ -4,17 +4,874 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'OpenWrt target (e.g. rockchip, x86, qualcommax)'
+        description: 'OpenWrt target'
         required: false
         default: rockchip
+        type: choice
+        options:
+          # BEGIN generated: target
+          - airoha
+          - at91
+          - bcm27xx
+          - bcm4908
+          - bcm53xx
+          - imx
+          - ipq40xx
+          - ipq806x
+          - layerscape
+          - mediatek
+          - microchipsw
+          - mvebu
+          - mxs
+          - omap
+          - qualcommax
+          - qualcommbe
+          - rockchip
+          - stm32
+          - sunxi
+          - uml
+          - x86
+          - zynq
+          # END generated: target
       subtarget:
-        description: 'OpenWrt subtarget (e.g. armv8, 64, ipq807x)'
+        description: 'OpenWrt subtarget (target/subtarget)'
         required: false
-        default: armv8
+        default: rockchip/armv8
+        type: choice
+        options:
+          # BEGIN generated: subtarget
+          - airoha/en7523
+          - airoha/an7581
+          - airoha/an7583
+          - at91/sama7
+          - bcm27xx/bcm2709
+          - bcm27xx/bcm2710
+          - bcm27xx/bcm2711
+          - bcm27xx/bcm2712
+          - bcm4908/generic
+          - bcm53xx/generic
+          - imx/cortexa7
+          - imx/cortexa9
+          - imx/cortexa53
+          - ipq40xx/generic
+          - ipq40xx/chromium
+          - ipq40xx/mikrotik
+          - ipq806x/generic
+          - ipq806x/chromium
+          - layerscape/armv8_64b
+          - layerscape/armv7
+          - mediatek/filogic
+          - mediatek/mt7622
+          - mediatek/mt7623
+          - mediatek/mt7629
+          - microchipsw/lan969x
+          - mvebu/cortexa9
+          - mvebu/cortexa53
+          - mvebu/cortexa72
+          - mxs/generic
+          - omap/generic
+          - qualcommax/ipq807x
+          - qualcommax/ipq60xx
+          - qualcommax/ipq50xx
+          - qualcommbe/ipq95xx
+          - rockchip/armv8
+          - rockchip/armv7
+          - stm32/stm32mp1
+          - sunxi/cortexa8
+          - sunxi/cortexa7
+          - sunxi/cortexa53
+          - uml/generic
+          - x86/64
+          - zynq/generic
+          # END generated: subtarget
       device:
-        description: 'Device profile (e.g. friendlyarm_nanopi-r5s, generic)'
+        description: 'Device profile'
         required: false
         default: friendlyarm_nanopi-r5s
+        type: choice
+        options:
+          # BEGIN generated: device
+          - 8dev_habanero-dvk
+          - 8dev_jalapeno
+          - 8devices_kiwi-dvk
+          - 8devices_mango-dvk
+          - 9tripod_x3568-v4
+          - abt_asr3000
+          - acelink_ew-7886cax
+          - acer_predator-w6
+          - acer_predator-w6d
+          - acer_predator-w6x-stock
+          - acer_predator-w6x-ubootmod
+          - acer_vero-w6m
+          - airoha_an7581-evb-multievb
+          - airoha_an7583-evb-multievb
+          - airoha_en7523-evb
+          - airpi_ap3000m
+          - airtel_aap4221zy
+          - alfa-network_ap120c-ac
+          - alfa-network_ap120c-ax
+          - aliyun_ap8220
+          - alwaylink_m01k43
+          - arcadyan_aw1000
+          - arcadyan_mozart
+          - ariaboard_photonicat
+          - ariaboard_photonicat2
+          - armsom_sige3
+          - armsom_sige7
+          - arris_tr4400-v2
+          - aruba_ap-303
+          - aruba_ap-303h
+          - aruba_ap-32x
+          - aruba_ap-365
+          - asiarf_ap7622-wh1
+          - asiarf_ap7986-003
+          - askey_rt4230w-rev6
+          - askey_sbe1v1k
+          - asrock_g10
+          - asus_gt-ac5300
+          - asus_map-ac1300
+          - asus_map-ac2200
+          - asus_onhub
+          - asus_rt-ac3100
+          - asus_rt-ac3200
+          - asus_rt-ac42u
+          - asus_rt-ac5300
+          - asus_rt-ac56u
+          - asus_rt-ac58u
+          - asus_rt-ac68u
+          - asus_rt-ac87u
+          - asus_rt-ac88u
+          - asus_rt-ax52
+          - asus_rt-ax57m
+          - asus_rt-ax59u
+          - asus_rt-ax59u-ubi
+          - asus_rt-ax89x
+          - asus_rt-n18u
+          - asus_tuf-ax4200
+          - asus_tuf-ax4200q
+          - asus_tuf-ax6000
+          - asus_zenwifi-bt8
+          - asus_zenwifi-bt8-ubootmod
+          - avm_fritzbox-4040
+          - avm_fritzbox-4050
+          - avm_fritzbox-7530
+          - avm_fritzrepeater-1200
+          - avm_fritzrepeater-3000
+          - avnet_zynq-zed
+          - bananapi_bpi-r2
+          - bananapi_bpi-r3
+          - bananapi_bpi-r3-mini
+          - bananapi_bpi-r4
+          - bananapi_bpi-r4-lite
+          - bananapi_bpi-r4-poe
+          - bananapi_bpi-r4-pro-4e
+          - bananapi_bpi-r4-pro-8x
+          - bananapi_bpi-r64
+          - bazis_ax3000wm
+          - bitmain_zynq-antminer-s9
+          - buffalo_ls220de
+          - buffalo_ls421de
+          - buffalo_wsr-2533dhp2
+          - buffalo_wsr-2533dhp3
+          - buffalo_wsr-3000ax4p
+          - buffalo_wsr-3200ax4s
+          - buffalo_wsr-6000ax8
+          - buffalo_wtr-m2133hp
+          - buffalo_wxr-1900dhp
+          - buffalo_wxr-2533dhp
+          - buffalo_wxr-5950ax12
+          - buffalo_wzr-1750dhp
+          - buffalo_wzr-600dhp2
+          - buffalo_wzr-900dhp
+          - cambiumnetworks_xe3-4
+          - cellc_rtl30vw
+          - cetron_ct3003
+          - cetron_ct3003-ubootmod
+          - checkpoint_v-80
+          - checkpoint_v-81
+          - cilab_meshpoint-one
+          - cmcc_a10-stock
+          - cmcc_a10-ubootmod
+          - cmcc_mr3000d-ci
+          - cmcc_pz-l8
+          - cmcc_rax3000m
+          - cmcc_rax3000me
+          - cmcc_rax3000q
+          - cmcc_rm2-6
+          - comfast_cf-e393ax
+          - comfast_cf-wa933
+          - comfast_cf-wa933-ubi
+          - comfast_cf-wr632ax
+          - comfast_cf-wr632ax-ubi
+          - comfast_cf-wr632ax-ubootmod
+          - comfast_cf-xr186
+          - compex_wpj428
+          - compex_wpq864
+          - compex_wpq873
+          - confiabits_mt7981
+          - creatlentem_clt-r30b1
+          - creatlentem_clt-r30b1-112m
+          - creatlentem_clt-r30b1-ubi
+          - ctera_c200-v2
+          - cubietech_a10-cubieboard
+          - cubietech_cubieboard2
+          - cubietech_cubietruck
+          - cudy_ap3000-v1
+          - cudy_ap3000outdoor-v1
+          - cudy_ap3000wall-v1
+          - cudy_m3000-v1
+          - cudy_m3000-v1-ubootmod
+          - cudy_m3000-v2-yt8821
+          - cudy_m3000-v2-yt8821-ubootmod
+          - cudy_p2-v1
+          - cudy_re3000-v1
+          - cudy_tr3000-256mb-v1
+          - cudy_tr3000-v1
+          - cudy_tr3000-v1-ubootmod
+          - cudy_wbr3000uax-v1
+          - cudy_wbr3000uax-v1-ubootmod
+          - cudy_wr3000-v1
+          - cudy_wr3000e-v1
+          - cudy_wr3000e-v1-ubootmod
+          - cudy_wr3000h-v1
+          - cudy_wr3000h-v1-ubootmod
+          - cudy_wr3000p-v1
+          - cudy_wr3000p-v1-ubootmod
+          - cudy_wr3000s-v1
+          - cudy_wr3000s-v1-ubootmod
+          - cudy_wr3000u-v1
+          - cyber_cyber3588-aib
+          - cznic_turris-mox
+          - cznic_turris-omnia
+          - devolo_magic-2-wifi-next
+          - digilent_zynq-zybo
+          - digilent_zynq-zybo-z7
+          - dlink_aquila-pro-ai-e30-a1
+          - dlink_aquila-pro-ai-m30-a1
+          - dlink_aquila-pro-ai-m60-a1
+          - dlink_dap-2610
+          - dlink_dir-885l
+          - dlink_dir-890l
+          - dlink_dwl-8610ap
+          - dlink_eagle-pro-ai-m32-a1
+          - dlink_eagle-pro-ai-r32-a1
+          - dynalink_dl-wrx36
+          - edgecore_eap102
+          - edgecore_eap111
+          - edgecore_ecw5211
+          - edgecore_ecw5410
+          - edimax_cax1800
+          - elecom_wrc-2533gent
+          - elecom_wrc-g01
+          - elecom_wrc-x3000gs2
+          - elecom_wrc-x3000gs3
+          - elecom_wrc-x3000gst2
+          - elecom_wrc-x3200gst3
+          - elecom_wrc-x6000gsd
+          - elecom_wrc-x6000qs
+          - engenius_eap1300
+          - extreme-networks_ws-ap3915i
+          - extreme-networks_ws-ap391x
+          - extreme_ap3935
+          - ezpro_mrkaio-m68s
+          - ezviz_cs-w3-wd1200g-eup
+          - firefly_roc-rk3328-cc
+          - firefly_roc-rk3568-pc
+          - fortinet_fap-421e
+          - fortinet_fg-30e
+          - fortinet_fg-50e
+          - fortinet_fg-51e
+          - fortinet_fg-52e
+          - fortinet_fwf-30e
+          - fortinet_fwf-50e-2r
+          - fortinet_fwf-51e
+          - friendlyarm_nanopc-t4
+          - friendlyarm_nanopc-t6
+          - friendlyarm_nanopi-m1-plus
+          - friendlyarm_nanopi-m5
+          - friendlyarm_nanopi-neo
+          - friendlyarm_nanopi-neo-air
+          - friendlyarm_nanopi-neo-plus2
+          - friendlyarm_nanopi-neo2
+          - friendlyarm_nanopi-r1
+          - friendlyarm_nanopi-r1s-h5
+          - friendlyarm_nanopi-r2c
+          - friendlyarm_nanopi-r2c-plus
+          - friendlyarm_nanopi-r2s
+          - friendlyarm_nanopi-r2s-plus
+          - friendlyarm_nanopi-r3s
+          - friendlyarm_nanopi-r4s
+          - friendlyarm_nanopi-r4s-enterprise
+          - friendlyarm_nanopi-r4se
+          - friendlyarm_nanopi-r5c
+          - friendlyarm_nanopi-r5s
+          - friendlyarm_nanopi-r6c
+          - friendlyarm_nanopi-r6s
+          - friendlyarm_nanopi-r76s
+          - friendlyarm_nanopi-zero2
+          - friendlyarm_zeropi
+          - fsl_ls1012a-frdm
+          - fsl_ls1012a-frwy-sdboot
+          - fsl_ls1012a-rdb
+          - fsl_ls1021a-iot-sdboot
+          - fsl_ls1021a-twr
+          - fsl_ls1021a-twr-sdboot
+          - fsl_ls1028a-rdb
+          - fsl_ls1028a-rdb-sdboot
+          - fsl_ls1043a-rdb
+          - fsl_ls1043a-rdb-sdboot
+          - fsl_ls1046a-frwy
+          - fsl_ls1046a-frwy-sdboot
+          - fsl_ls1046a-rdb
+          - fsl_ls1046a-rdb-sdboot
+          - fsl_ls1088a-rdb
+          - fsl_ls1088a-rdb-sdboot
+          - fsl_ls2088a-rdb
+          - fsl_lx2160a-rdb
+          - fsl_lx2160a-rdb-sdboot
+          - gateworks_venice
+          - gateworks_ventana
+          - gateworks_ventana-large
+          - gatonetworks_gdsp
+          - gemtek_w1700k-ubi
+          - generic
+          - glinet_gl-a1300
+          - glinet_gl-ap1300
+          - glinet_gl-ax1800
+          - glinet_gl-axt1800
+          - glinet_gl-b1300
+          - glinet_gl-b2200
+          - glinet_gl-b3000
+          - glinet_gl-be10000
+          - glinet_gl-mt2500
+          - glinet_gl-mt2500-airoha
+          - glinet_gl-mt3000
+          - glinet_gl-mt3600be
+          - glinet_gl-mt6000
+          - glinet_gl-mv1000
+          - glinet_gl-s1300
+          - glinet_gl-x2000
+          - glinet_gl-x3000
+          - glinet_gl-xe3000
+          - globalscale_espressobin
+          - globalscale_espressobin-emmc
+          - globalscale_espressobin-ultra
+          - globalscale_espressobin-v7
+          - globalscale_espressobin-v7-emmc
+          - globalscale_mirabox
+          - globalscale_mochabin
+          - globitel_bt-r320
+          - google_wifi
+          - graperain_g3568-v2
+          - h3c_magic-nx30-pro
+          - haoyu_a10-marsboard
+          - herospeed_rv1126-imx415
+          - hiveton_h5000m
+          - huake_guangmiao-g4c
+          - huasifei_wh3000-emmc
+          - huasifei_wh3000-pro-emmc
+          - huasifei_wh3000-pro-nand
+          - huasifei_wh3000r-nand
+          - huawei_ap4050dn
+          - i2se_duckbill
+          - iei_puzzle-m901
+          - iei_puzzle-m902
+          - ignitenet_ss-w2-ac2600
+          - iij_sa-w2
+          - imou_hx21
+          - imx8m
+          - iodata_wn-dax3000gr
+          - iptime_a6004mx
+          - iptime_ax3000m
+          - iptime_ax3000q
+          - iptime_ax3000se
+          - iptime_ax3000sm
+          - iptime_ax7800m-6e
+          - iptime_nas1dual
+          - jcg_q30-pro
+          - jdcloud_re-cp-03
+          - jdcloud_re-cs-02
+          - jdcloud_re-cs-07
+          - jdcloud_re-ss-01
+          - jiorouter_ax6000-jidu6101
+          - jiorouter_ax6000-jidu6j01
+          - kebidumei_ax3000-u22
+          - keenetic_kap-630
+          - keenetic_kn-1012
+          - keenetic_kn-1812
+          - keenetic_kn-3411
+          - keenetic_kn-3711
+          - keenetic_kn-3811
+          - keenetic_kn-3911
+          - keenetic_kn-4410
+          - kobol_helios4
+          - konka_komi-a31
+          - kontron_osm-s-imx8mp
+          - lamobo_lamobo-r1
+          - lemaker_bananapi
+          - lemaker_bananapro
+          - libretech_all-h3-cc-h5
+          - licheepi_licheepi-zero-dock
+          - link_nn6000-v1
+          - link_nn6000-v2
+          - linkease_easepi-r1
+          - linksprite_a10-pcduino
+          - linksprite_pcduino3
+          - linksprite_pcduino3-nano
+          - linksys_e8350-v1
+          - linksys_e8450
+          - linksys_e8450-ubi
+          - linksys_ea6300-v1
+          - linksys_ea6350v3
+          - linksys_ea6500-v2
+          - linksys_ea7500-v1
+          - linksys_ea7500-v3
+          - linksys_ea8300
+          - linksys_ea8500
+          - linksys_ea9200
+          - linksys_ea9500
+          - linksys_homewrk
+          - linksys_ln6001
+          - linksys_mr2000
+          - linksys_mr5500
+          - linksys_mr6350
+          - linksys_mr7350
+          - linksys_mr7500
+          - linksys_mr8300
+          - linksys_mr9000
+          - linksys_mx2000
+          - linksys_mx4200v1
+          - linksys_mx4200v2
+          - linksys_mx4300
+          - linksys_mx5300
+          - linksys_mx5500
+          - linksys_mx6200
+          - linksys_mx8500
+          - linksys_spnmx56
+          - linksys_whw01
+          - linksys_whw03
+          - linksys_whw03v2
+          - linksys_wrt1200ac
+          - linksys_wrt1900ac-v1
+          - linksys_wrt1900ac-v2
+          - linksys_wrt1900acs
+          - linksys_wrt3200acm
+          - linksys_wrt32x
+          - livinet_li320
+          - livinet_zr-3020
+          - livinet_zr-3020-ubootmod
+          - ltc_vl7m19k
+          - luma_wrtq-329acn
+          - lunzn_fastrhino-r66s
+          - lunzn_fastrhino-r68s
+          - luxul_abr-4500-v1
+          - luxul_xap-1610-v1
+          - luxul_xbr-4500-v1
+          - luxul_xwr-3150-v1
+          - lyt_t68m
+          - marvell_a370-db
+          - marvell_a370-rd
+          - marvell_a385-db-ap
+          - marvell_a388-rd
+          - marvell_armada-3720-db
+          - marvell_armada7040-db
+          - marvell_armada8040-db
+          - marvell_axp-db
+          - marvell_axp-gp
+          - marvell_clearfog-gt-8k
+          - marvell_macchiatobin-doubleshot
+          - marvell_macchiatobin-singleshot
+          - mediatek_mt7622-rfb1
+          - mediatek_mt7622-rfb1-ubi
+          - mediatek_mt7629-rfb
+          - mediatek_mt7981-rfb
+          - mediatek_mt7986a-rfb-nand
+          - mediatek_mt7986b-rfb
+          - mediatek_mt7987a-rfb
+          - mediatek_mt7988a-rfb
+          - mele_m9
+          - meraki_gx20
+          - meraki_mr20
+          - meraki_mr26
+          - meraki_mr30h
+          - meraki_mr32
+          - meraki_mr33
+          - meraki_mr42
+          - meraki_mr52
+          - meraki_mr70
+          - meraki_mr74
+          - meraki_mx64
+          - meraki_mx64-a0
+          - meraki_mx65
+          - meraki_z3
+          - meraki_z3c
+          - mercusys_mr80x-v2
+          - mercusys_mr80x-v3
+          - mercusys_mr85x
+          - mercusys_mr85x-ubi
+          - mercusys_mr90x-v1
+          - mercusys_mr90x-v1-ubi
+          - merrii_hummingbird
+          - methode_edpu
+          - methode_udpu
+          - microchip_ev23x71a
+          - microchip_sama7g5-ek
+          - mikrotik_cap-ac
+          - mikrotik_chateau-5g-r17-ax
+          - mikrotik_hap-ac2
+          - mikrotik_hap-ac3
+          - mikrotik_hap-ac3-lte6-kit
+          - mikrotik_lhgg-60ad
+          - mikrotik_rb5009ug
+          - mikrotik_rb5009upr
+          - mikrotik_sxtsq-5-ac
+          - mikrotik_wap-ac
+          - mikrotik_wap-ac-lte
+          - mikrotik_wap-r-ac
+          - mmbox_anas3035
+          - mobipromo_cm520-79f
+          - myir_myd-yt113x-emmc
+          - myir_myd-yt113x-spi
+          - nec_wg2600hp
+          - nec_wg2600hp3
+          - netcore_n60
+          - netcore_n60-pro
+          - netcraze_nap-630
+          - netcraze_nc-1012
+          - netcraze_nc-1812
+          - netcraze_nc-3411
+          - netcraze_nc-4410
+          - netgear_d7800
+          - netgear_eax17
+          - netgear_ex6100v2
+          - netgear_ex6150v2
+          - netgear_ex6250-v2
+          - netgear_lbr20
+          - netgear_r6250-v1
+          - netgear_r6300-v2
+          - netgear_r6400-v1
+          - netgear_r7000
+          - netgear_r7500
+          - netgear_r7500v2
+          - netgear_r7800
+          - netgear_r7900
+          - netgear_r8000
+          - netgear_r8000p
+          - netgear_r8500
+          - netgear_rax120v2
+          - netgear_rbr20
+          - netgear_rbr350
+          - netgear_rbr40
+          - netgear_rbr50
+          - netgear_rbr750
+          - netgear_rbr850
+          - netgear_rbs20
+          - netgear_rbs350
+          - netgear_rbs40
+          - netgear_rbs50
+          - netgear_rbs750
+          - netgear_rbs850
+          - netgear_srr60
+          - netgear_srs60
+          - netgear_sxr80
+          - netgear_sxs80
+          - netgear_wac510
+          - netgear_wax206
+          - netgear_wax214
+          - netgear_wax218
+          - netgear_wax220
+          - netgear_wax610
+          - netgear_wax610y
+          - netgear_wax620
+          - netgear_wax630
+          - netgear_xr450
+          - netgear_xr500
+          - netis_eap930-v1
+          - netis_n6-v2
+          - netis_nx30v2
+          - netis_nx31
+          - netis_nx32u
+          - nlnet_xiguapi-v3
+          - nokia_ac400i
+          - nokia_ea0326gmp
+          - nokia_valyrian
+          - nokia_xg-040g-md
+          - nokia_xg-040g-md-ubi
+          - nokia_xg-040g-mf
+          - nokia_xg-040g-mf-ubi
+          - novarq_tactical-1000
+          - nradio_c8-668gl
+          - olimex_a10-olinuxino-lime
+          - olimex_a13-olinuxino
+          - olimex_a20-olinuxino-lime
+          - olimex_a20-olinuxino-lime2
+          - olimex_a20-olinuxino-lime2-emmc
+          - olimex_a20-olinuxino-micro
+          - olimex_a64-olinuxino
+          - olimex_a64-olinuxino-emmc
+          - olimex_imx8mp-som
+          - olimex_olinuxino
+          - olinuxino_maxi
+          - olinuxino_micro
+          - openembed_som7981
+          - openfi_6c
+          - openmesh_a42
+          - openmesh_a62
+          - openwrt_one
+          - p2w_r619ac-128m
+          - p2w_r619ac-64m
+          - pakedge_wr-1
+          - phicomm_k3
+          - pine64_pine64-plus
+          - pine64_pinecube
+          - pine64_rock64
+          - pine64_rockpro64
+          - pine64_sopine-baseboard
+          - plasmacloud_pa1200
+          - plasmacloud_pa2200
+          - plathome_openblocks-ax3-4
+          - prpl_haze
+          - qcom_ipq8064-ap148
+          - qcom_ipq8064-ap148-legacy
+          - qcom_ipq8064-ap161
+          - qcom_ipq8064-db149
+          - qcom_rdp433
+          - qihoo_360t7
+          - qihoo_360t7-ubi
+          - qihoo_360v6
+          - qnap_301w
+          - quantum_q1000k-ubi
+          - qxwlan_e2600ac-c1
+          - qxwlan_e2600ac-c2
+          - radxa_cm3-io
+          - radxa_cubie-a5e
+          - radxa_e20c
+          - radxa_e25
+          - radxa_e52c
+          - radxa_rock-2a
+          - radxa_rock-2f
+          - radxa_rock-3a
+          - radxa_rock-3b
+          - radxa_rock-3c
+          - radxa_rock-4c-plus
+          - radxa_rock-4d
+          - radxa_rock-4se
+          - radxa_rock-5-itx
+          - radxa_rock-5a
+          - radxa_rock-5b
+          - radxa_rock-5b-plus
+          - radxa_rock-5c
+          - radxa_rock-5t
+          - radxa_rock-pi-4a
+          - radxa_rock-pi-e
+          - radxa_rock-pi-s
+          - radxa_zero-3e
+          - radxa_zero-3w
+          - redmi_ax6
+          - redmi_ax6-stock
+          - reyee_ax3200-e5
+          - ripe_atlas-v5
+          - rongpin_rp-t113
+          - roofull_beelink-x2
+          - routerich_ax3000
+          - routerich_ax3000-ubootmod
+          - routerich_ax3000-v1
+          - routerich_be7200
+          - rpi-2
+          - rpi-3
+          - rpi-4
+          - rpi-5
+          - ruijie_rg-ew3200gx-pro
+          - ruijie_rg-mtfi-m520
+          - ruijie_rg-x60
+          - ruijie_rg-x60-pro
+          - sinovoip_bpi-m2-berry
+          - sinovoip_bpi-m2-plus
+          - sinovoip_bpi-m2-ultra
+          - sinovoip_bpi-m3
+          - sinovoip_bpi-p2-zero
+          - sinovoip_bpi-r2-pro
+          - skspruce_wia3300-20
+          - smartrg_sdg-841-t6
+          - smartrg_sdg-8612
+          - smartrg_sdg-8614
+          - smartrg_sdg-8622
+          - smartrg_sdg-8632
+          - smartrg_sdg-8712
+          - smartrg_sdg-8732
+          - smartrg_sdg-8733
+          - smartrg_sdg-8733a
+          - smartrg_sdg-8734
+          - smartrg_sdg-9000
+          - smartrg_sr400ac
+          - snr_snr-cpe-ax2
+          - solidrun_clearfog-base-a1
+          - solidrun_clearfog-pro
+          - solidrun_clearfog-pro-a1
+          - solidrun_cubox-i
+          - sony_ncp-hg100-cellular
+          - sophos_apx120
+          - spectrum_sax1v1k
+          - stm32mp135f-dk
+          - stm32mp157c-dk2
+          - stm32mp157c-dk2-scmi
+          - synology_ds213j
+          - tcl_linkhub-hh500v
+          - technexion_imx7d-pico-pi
+          - teltonika_rutc50
+          - teltonika_rutx50
+          - tenbay_wr3000k
+          - tenda_ac9
+          - tenda_be12-pro
+          - teralink_tl3020-256mb
+          - ti_am335x-bone-black
+          - ti_am335x-evm
+          - ti_omap3-beagle
+          - ti_omap4-panda
+          - toradex_apalis
+          - totolink_a8000ru
+          - totolink_x6000r
+          - tplink_ad7200
+          - tplink_archer-ax55-v1
+          - tplink_archer-ax80-v1
+          - tplink_archer-ax80-v1-eu
+          - tplink_archer-c2300-v1
+          - tplink_be450
+          - tplink_be450-ubi
+          - tplink_c2600
+          - tplink_deco-m5-v1
+          - tplink_deco-m5-v2
+          - tplink_deco-m5-v3
+          - tplink_deco-x80-5g
+          - tplink_eap225-v5
+          - tplink_eap610-outdoor
+          - tplink_eap620-hd-v2
+          - tplink_eap620-hd-v3
+          - tplink_eap620hd-v1
+          - tplink_eap623-outdoor-hd-v1
+          - tplink_eap625-outdoor-hd-v1
+          - tplink_eap650-outdoor-v1
+          - tplink_eap660hd-v1
+          - tplink_eap683-lr
+          - tplink_f65-v1
+          - tplink_fr365-v1
+          - tplink_onhub
+          - tplink_re6000xd
+          - tplink_re700x
+          - tplink_tl-7dr7230-v1
+          - tplink_tl-7dr7230-v2
+          - tplink_tl-7dr7250-v1
+          - tplink_tl-7dr7299-v1
+          - tplink_tl-xdr3230-v1
+          - tplink_tl-xdr3250-v1
+          - tplink_tl-xdr4288
+          - tplink_tl-xdr6086
+          - tplink_tl-xdr6088
+          - tplink_tl-xtr8488
+          - tplink_vr2600v
+          - traverse_ten64-mtd
+          - ubnt_unifi-6-lr-v1
+          - ubnt_unifi-6-lr-v1-ubootmod
+          - ubnt_unifi-6-lr-v2
+          - ubnt_unifi-6-lr-v2-ubootmod
+          - ubnt_unifi-6-lr-v3
+          - ubnt_unifi-6-lr-v3-ubootmod
+          - ubnt_unifi-6-plus
+          - ubnt_unifi-ac-hd
+          - ubnt_utr
+          - unielec_u7623-02
+          - unielec_u7623-02-emmc-512m-legacy
+          - unielec_u7981-01-emmc
+          - unielec_u7981-01-nand
+          - wallys_dr40x9
+          - wallys_dr5018s
+          - wallys_dr6018s
+          - wandboard_dual
+          - watchguard_firebox-t40
+          - wavlink_wl-wn536ax6-a
+          - wavlink_wl-wn551x3
+          - wavlink_wl-wn573hx3
+          - wavlink_wl-wn586x3
+          - wavlink_wl-wn586x3b
+          - wavlink_wl-wnt100x3
+          - wavlink_wl-wnt100x3-ubootmod
+          - wd_cloud-ex2-ultra
+          - wd_cloud-mirror-gen2
+          - widelantech_wap430x
+          - widora_mangopi-m28c
+          - widora_mangopi-m28k
+          - widora_mangopi-mqdual-t113
+          - xiaomi_ax3600
+          - xiaomi_ax3600-stock
+          - xiaomi_ax6000
+          - xiaomi_ax9000
+          - xiaomi_ax9000-stock
+          - xiaomi_mi-router-ax3000t
+          - xiaomi_mi-router-ax3000t-ubootmod
+          - xiaomi_mi-router-hd
+          - xiaomi_mi-router-wr30u-stock
+          - xiaomi_mi-router-wr30u-ubootmod
+          - xiaomi_redmi-ax5400
+          - xiaomi_redmi-router-ax6000-stock
+          - xiaomi_redmi-router-ax6000-ubootmod
+          - xiaomi_redmi-router-ax6s
+          - xlnx_zynq-zc702
+          - xunison_exigo-hub-d50-5g
+          - xunlong_orangepi-2
+          - xunlong_orangepi-5
+          - xunlong_orangepi-5-plus
+          - xunlong_orangepi-one
+          - xunlong_orangepi-one-plus
+          - xunlong_orangepi-pc
+          - xunlong_orangepi-pc-plus
+          - xunlong_orangepi-pc2
+          - xunlong_orangepi-plus
+          - xunlong_orangepi-r1
+          - xunlong_orangepi-r1-plus
+          - xunlong_orangepi-r1-plus-lts
+          - xunlong_orangepi-zero
+          - xunlong_orangepi-zero-plus
+          - xunlong_orangepi-zero2
+          - xunlong_orangepi-zero2w
+          - xunlong_orangepi-zero3
+          - yuncore_ax830
+          - yuncore_ax835
+          - yuncore_ax850
+          - yuncore_ax880
+          - yuncore_fap650
+          - yyets_le1
+          - zbtlink_zbt-z800ax
+          - zbtlink_zbt-z8102ax
+          - zbtlink_zbt-z8102ax-v2
+          - zbtlink_zbt-z8103ax
+          - zbtlink_zbt-z8103ax-c
+          - zbtlink_zbt-z8105ax-c
+          - zbtlink_zbt-z8106ax-s
+          - zbtlink_zbt-z8106ax-t
+          - zbtlink_zbt-z8803be
+          - zte_mf18a
+          - zte_mf269
+          - zte_mf269-stock
+          - zte_mf282plus
+          - zte_mf286d
+          - zte_mf287
+          - zte_mf287plus
+          - zte_mf287pro
+          - zte_mf289f
+          - zte_t5400
+          - zyxel_ex5601-t0-stock
+          - zyxel_ex5601-t0-ubootmod
+          - zyxel_ex5700-telenor
+          - zyxel_nas326
+          - zyxel_nbg6617
+          - zyxel_nbg6817
+          - zyxel_nbg7815
+          - zyxel_nwa110ax
+          - zyxel_nwa210ax
+          - zyxel_nwa50ax-pro
+          - zyxel_scr50axe
+          - zyxel_wx5600-t0-ubootmod
+          # END generated: device
   push:
     branches:
       - master-Honk+Doona
@@ -35,17 +892,32 @@ concurrency:
 # triplet and the package would fail to install fficonfig.h.
 env:
   OW_TARGET: ${{ github.event.inputs.target || 'rockchip' }}
-  OW_SUBTARGET: ${{ github.event.inputs.subtarget || 'armv8' }}
+  OW_SUBTARGET: ${{ github.event.inputs.subtarget || 'rockchip/armv8' }}
   OW_DEVICE: ${{ github.event.inputs.device || 'friendlyarm_nanopi-r5s' }}
 
 jobs:
   build:
     # NOTE: the "env" context is not available in a job name, only in the steps.
-    name: Build ${{ github.event.inputs.target || 'rockchip' }}/${{ github.event.inputs.subtarget || 'armv8' }}/${{ github.event.inputs.device || 'friendlyarm_nanopi-r5s' }}
+    name: Build ${{ github.event.inputs.target || 'rockchip' }}/${{ github.event.inputs.subtarget || 'rockchip/armv8' }}/${{ github.event.inputs.device || 'friendlyarm_nanopi-r5s' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 360
 
     steps:
+      - name: Resolve the target and the subtarget
+        run: |
+          case "$OW_SUBTARGET" in
+            */*) ;;
+            *) echo "::error::the subtarget must be given as target/subtarget"; exit 1 ;;
+          esac
+          T="${OW_SUBTARGET%%/*}"
+          S="${OW_SUBTARGET#*/}"
+          if [ "$T" != "$OW_TARGET" ]; then
+            echo "::error::the target '$OW_TARGET' does not belong to the subtarget '$OW_SUBTARGET'"
+            exit 1
+          fi
+          echo "OW_SUB=$S" >> "$GITHUB_ENV"
+          echo "::notice::building $OW_TARGET/$S device $OW_DEVICE"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -57,9 +929,9 @@ jobs:
           path: |
             dl
             ~/.ccache
-          key: ${{ runner.os }}-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}-${{ hashFiles('feeds.conf.default') }}
+          key: ${{ runner.os }}-${{ env.OW_TARGET }}-${{ env.OW_SUB }}-${{ env.OW_DEVICE }}-${{ hashFiles('feeds.conf.default') }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}-
+            ${{ runner.os }}-${{ env.OW_TARGET }}-${{ env.OW_SUB }}-${{ env.OW_DEVICE }}-
 
       - name: Install build dependencies
         run: |
@@ -82,13 +954,21 @@ jobs:
         run: |
           cat > .config <<EOF
           CONFIG_TARGET_${OW_TARGET}=y
-          CONFIG_TARGET_${OW_TARGET}_${OW_SUBTARGET}=y
-          CONFIG_TARGET_${OW_TARGET}_${OW_SUBTARGET}_DEVICE_${OW_DEVICE}=y
+          CONFIG_TARGET_${OW_TARGET}_${OW_SUB}=y
+          CONFIG_TARGET_${OW_TARGET}_${OW_SUB}_DEVICE_${OW_DEVICE}=y
           EOF
           cat config/honk-doona.config >> .config
           make defconfig
           echo '--- the resolved selection ---'
           grep -E 'CONFIG_(PACKAGE_(honk|luci-app-honk)|KERNEL_DEBUG_INFO_BTF|DWARVES)=' .config
+          if ! grep -q "^CONFIG_TARGET_${OW_TARGET}_${OW_SUB}_DEVICE_${OW_DEVICE}=y$" .config; then
+            echo "::error::the device '$OW_DEVICE' does not belong to $OW_TARGET/$OW_SUB"
+            echo "the devices of this subtarget are:"
+            grep -o "config TARGET_${OW_TARGET}_${OW_SUB}_DEVICE_[A-Za-z0-9_.-]*" tmp/.config-target.in \
+              | sed 's/.*DEVICE_//' | head -80 | tr '\n' ' '
+            echo
+            exit 1
+          fi
 
       - name: Download sources
         run: |
@@ -100,9 +980,10 @@ jobs:
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-${{ env.OW_TARGET }}-${{ env.OW_SUBTARGET }}-${{ env.OW_DEVICE }}
+          name: immortalwrt-${{ env.OW_TARGET }}-${{ env.OW_SUB }}-${{ env.OW_DEVICE }}
           path: |
-            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*sysupgrade.img.gz
-            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*sysupgrade.bin
-            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUBTARGET }}/*.manifest
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*sysupgrade.img.gz
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*sysupgrade.bin
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*sysupgrade.tar
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*.manifest
           if-no-files-found: error
