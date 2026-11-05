@@ -982,8 +982,9 @@ jobs:
         with:
           name: immortalwrt-${{ env.OW_TARGET }}-${{ env.OW_SUB }}-${{ env.OW_DEVICE }}
           path: |
-            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*sysupgrade.img.gz
-            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*sysupgrade.bin
-            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*sysupgrade.tar
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*.img.gz
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*.bin
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*.ubi
+            bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*.itb
             bin/targets/${{ env.OW_TARGET }}/${{ env.OW_SUB }}/*.manifest
           if-no-files-found: error
