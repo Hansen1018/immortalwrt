@@ -169,9 +169,26 @@ selected automatically as soon as that device profile is chosen.
 
 ### GitHub Actions
 
-`.github/workflows/build-honk-doona.yml` builds the same image on every push to this
-branch and attaches the `*-sysupgrade.img.gz` to the run. It can also be started manually
-from the *Actions* tab.
+`.github/workflows/build-honk-doona.yml` builds the image on every push to this branch and
+attaches it to the run. It can also be started manually from the *Actions* tab, where the
+target, the subtarget and the device are **drop-downs**, not free text:
+
+| Input | Options | Meaning |
+|---|---|---|
+| `target` | 22 | the OpenWrt target (`rockchip`, `x86`, `qualcommax`, ...) |
+| `subtarget` | 43 | given as `target/subtarget` (`rockchip/armv8`, `x86/64`, ...) |
+| `device` | 780 | the device profile (`friendlyarm_nanopi-r5s`, `generic`, ...) |
+
+The lists are generated from the tree, so a new device profile appears in the dialog
+automatically. To refresh them after a tree update:
+
+```bash
+make defconfig
+python3 scripts/gen-honk-workflow-options.py
+```
+
+The workflow checks that the target matches the subtarget and that the device belongs to
+it, and prints the valid devices of that subtarget when it does not.
 
 ### After flashing
 
