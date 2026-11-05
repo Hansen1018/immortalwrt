@@ -198,6 +198,41 @@ it, and prints the valid devices of that subtarget when it does not.
   (installed by `kmod-sched-core`, `kmod-sched-bpf`, `kmod-veth`, `kmod-nft-queue`) and
   `ip` from `ip-full`.
 
+### 存储模式：导入与修订历史
+
+honk 有两种配置存储模式，由 UCI 选项 `honk.main.store` 决定（默认 `db`）：
+
+| 模式 | 核心启动参数 | 导入 | 修订历史 |
+|---|---|---|---|
+| `db`（默认） | `honk-core --config /etc/honk/config.dae --store db` | 可用 `/api/v1/x-honk/config/import` | 可用 `/api/v1/x-honk/config/revisions` |
+| `file` | `honk-core --config /etc/honk/config.dae` | 路由返回 `404 capability_not_supported` | 同样返回 404 |
+
+**Doona 面板里的「导入」和「配置修订历史」只在 `db` 模式下存在** —— 文件模式下这两个
+路由由核心直接回 404，界面不会显示它们。
+
+`db` 模式的前提（核心会 fail-closed 检查，缺一即拒绝启动）：
+
+- `experimental.native_api.enabled: true`
+- `experimental.native_api.config_write: true`
+- 一个管理员凭据（面板的首次初始化会通过 `/api/v1/auth/setup` 建立）
+
+`db` 模式下的两点变化：
+
+- `/etc/honk/config.dae` 变成**导入用的源树**（导入时会重新读取它），运行中的配置由核心
+  托管在自己的状态库（`state/honk.db`）里，每次改动都记为一个修订。LuCI 面板里直接改
+  文件的动作不再生效，改配置请用 Doona 面板（`http://<路由器IP>:9527/`）。
+- 核心在 `db` 模式下**不运行 Clash API**（此时设置 `experimental.clash_api.external_controller`
+  会得到提示），需要 Clash API 请改回 `file` 模式。
+
+回到文件模式（honk 官方的步骤）：
+
+```sh
+honk-core config export --out /etc/honk/config.dae
+uci set honk.main.store='file'
+uci commit honk
+service honk restart
+```
+
 ## License
 ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html).
 

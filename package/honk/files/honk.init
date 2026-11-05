@@ -56,7 +56,14 @@ start_service() {
 	printf '%s %s\n' "$ready_token" "$ready_hash" > /var/run/honk/readiness || return 1
 	chmod 0600 /var/run/honk/readiness || return 1
 	procd_open_instance main
-	procd_set_param command /usr/bin/honk-core --config "$HONK_CONFIG" --disable-timestamp
+	# 存储模式：db = 核心托管配置（原生 API 的导入/修订历史可用）；file = 配置文件为准。
+	# 两种模式都需要 native-api 构建特性（--store db 按 honk 文档要求）。
+	store_mode=$(config_get store main store db)
+	case "$store_mode" in
+		db) procd_set_param command /usr/bin/honk-core --config "$HONK_CONFIG" --disable-timestamp --store db ;;
+		file) procd_set_param command /usr/bin/honk-core --config "$HONK_CONFIG" --disable-timestamp ;;
+		*) logger -t honk "unknown store mode '$store_mode', using file"; procd_set_param command /usr/bin/honk-core --config "$HONK_CONFIG" --disable-timestamp ;;
+	esac
 	# One env call, no empty values: procd drops the whole list when a KEY has an
 	# empty value, which silently stripped the readiness hash the core requires.
 	ready_env="DAE_LOCATION_ASSET=/usr/share/v2ray"
