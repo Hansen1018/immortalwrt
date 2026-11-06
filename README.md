@@ -246,6 +246,14 @@ service honk restart
 
 核心有两种存储模式，由 UCI 的 `honk.main.store` 决定（默认 `db`）：
 
+- **切换方式**：LuCI 的「Honk → 设置 → 存储模式」（选「数据库（修订历史）」或「配置文件」，
+  保存后自动重启服务）；或者命令行 `uci set honk.main.store=db && uci commit honk &&
+  /etc/init.d/honk restart`。
+- `/etc/config/honk` 是 conffile，升级固件时会保留旧文件，里面可能没有 `store` 这个键
+  （这个键是后来才加的）。缺省时按 `db` 处理，首次启动的迁移脚本也会把它补写进去。
+  概览页的「存储模式」一行显示的是**实际生效**的模式（读运行中核心的命令行），
+  不一致时会告警；核心跑在 file 模式时还会提示「没有导入与修订历史」。
+
 - `file`：以 `/etc/honk/config.dae` 为准。
 - `db`：核心托管配置，`.dae` 源作为**修订**存在 `<data_dir>/state/honk.db` 里。
 

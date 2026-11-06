@@ -255,6 +255,10 @@ return view.extend({
 				statusCard.appendChild(E('p', { 'class': 'alert-message', 'role': 'status' },
 					_('The store mode in the configuration (%s) is not the one the core runs with (%s). The configuration import and the revision history need the database store.').format(status.store_mode, status.store_active)));
 
+			if (status.store_active === 'file')
+				statusCard.appendChild(E('p', { 'class': 'alert-message', 'role': 'status' },
+					_('The core runs in file mode: the configuration import and the revision history are not available. Switch the store mode to the database in the settings.')));
+
 			if (status.store_bridge === 'no_credential')
 				statusCard.appendChild(renderBridgeAuthorize(refresh));
 

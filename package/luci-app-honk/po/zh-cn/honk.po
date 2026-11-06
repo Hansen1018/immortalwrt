@@ -534,6 +534,18 @@ msgstr "无效的 %s：必须是 http(s) 链接。"
 msgid "Store mode"
 msgstr "存储模式"
 
+msgid "Database (revisions)"
+msgstr "数据库（修订历史）"
+
+msgid "Configuration file"
+msgstr "配置文件"
+
+msgid "The database store keeps the running configuration as revisions, so the Doona panel can import configurations and show the revision history. The file store keeps the configuration in /etc/honk/config.dae only, and the panel then has no import or revision history. The change takes effect after the service restarts."
+msgstr "数据库存储把运行配置保存为修订，Doona 面板才能导入配置、查看修订历史；文件存储只认 /etc/honk/config.dae，面板没有导入与修订历史。保存后需要重启服务才会生效。"
+
+msgid "The core runs in file mode: the configuration import and the revision history are not available. Switch the store mode to the database in the settings."
+msgstr "核心当前运行在文件模式：配置导入与修订历史不可用。请在设置里把存储模式改为数据库。"
+
 msgid "Revision history bridge"
 msgstr "修订历史桥"
 

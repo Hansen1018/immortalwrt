@@ -498,6 +498,8 @@ settings() {
 	json_get_type clash_port_type clash_api_port
 	json_get_var new_clash_secret clash_api_secret
 	json_get_type clash_secret_type clash_api_secret
+	json_get_var new_store store
+	json_get_type store_type store
 	[ "$network_type" = string ] || { echo '{"ok":false,"message":"invalid_lan_network"}'; return 1; }
 	case "$port_type" in int|integer) ;; *) echo '{"ok":false,"message":"invalid_listen_port"}'; return 1 ;; esac
 	# boot_enabled 已内置（恒为 1），前端不再提交，缺省就按当前值处理
@@ -509,6 +511,10 @@ settings() {
 	case "$new_port" in ''|*[!0-9]*) echo '{"ok":false,"message":"invalid_listen_port"}'; return 1 ;; esac
 	[ "$new_port" -ge 1024 ] && [ "$new_port" -le 65535 ] || { echo '{"ok":false,"message":"invalid_listen_port"}'; return 1; }
 	load_settings
+	# 存储模式：db 才有配置导入与修订历史；file 只认配置文件。
+	config_get store_mode main store db
+	case "$store_type" in ''|null) new_store=$store_mode ;; esac
+	case "$new_store" in db|file) ;; *) echo '{"ok":false,"message":"invalid_store_mode"}'; return 1 ;; esac
 	case "$boot_enabled_type" in ''|null) new_boot_enabled=1 ;; esac
 	new_boot_enabled=1
 	case "$clash_enabled_type" in ''|null) new_clash_enabled=$clash_api_enabled ;; esac
@@ -590,7 +596,7 @@ settings() {
 		if [ "$rollback_status" = 0 ]; then rm -rf "$settings_dir"; echo '{"ok":false,"message":"system_config_write_failed_rolled_back"}'; else logger -t honk "settings rollback failed; snapshot retained at $settings_dir"; echo '{"ok":false,"message":"system_config_write_and_rollback_failed_snapshot_retained"}'; fi
 		return 1
 	fi
-	uci set "honk.main.lan_network=$new_network" && uci set "honk.main.listen_port=$new_port" && uci set "honk.main.enabled=$new_enabled" && uci set "honk.main.boot_enabled=$new_boot_enabled" && uci set "honk.main.clash_api_enabled=$new_clash_enabled" && uci set "honk.main.clash_api_port=$new_clash_port" && uci set "honk.main.clash_api_secret=$new_clash_secret" && uci commit honk && chmod 0600 /etc/config/honk || {
+	uci set "honk.main.lan_network=$new_network" && uci set "honk.main.listen_port=$new_port" && uci set "honk.main.store=$new_store" && uci set "honk.main.enabled=$new_enabled" && uci set "honk.main.boot_enabled=$new_boot_enabled" && uci set "honk.main.clash_api_enabled=$new_clash_enabled" && uci set "honk.main.clash_api_port=$new_clash_port" && uci set "honk.main.clash_api_secret=$new_clash_secret" && uci commit honk && chmod 0600 /etc/config/honk || {
 		settings_rollback; rollback_status=$?
 		if [ "$rollback_status" = 0 ]; then rm -rf "$settings_dir"; echo '{"ok":false,"message":"settings_commit_failed_rolled_back"}'; else logger -t honk "settings rollback failed; snapshot retained at $settings_dir"; echo '{"ok":false,"message":"settings_commit_and_rollback_failed_snapshot_retained"}'; fi
 		return 1

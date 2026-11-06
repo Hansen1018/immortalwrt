@@ -61,7 +61,7 @@ status() {
 	config_get_bool clash_api_enabled main clash_api_enabled 0
 	config_get clash_api_port main clash_api_port 9090
 	config_get clash_api_secret main clash_api_secret ''
-	config_get store_configured main store file
+	config_get store_configured main store db
 	managed_pid=$(procd_core_pid)
 	if is_managed_core "$managed_pid"; then running=1; else running=0; fi
 	# 实际生效的存储模式：读运行中核心的命令行。只看 UCI 是不够的，

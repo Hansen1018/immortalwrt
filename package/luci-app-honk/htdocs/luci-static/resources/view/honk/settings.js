@@ -49,6 +49,9 @@ return view.extend({
 		const networkSelect = E('select', { 'class': 'cbi-input-select', 'name': 'lan_network', 'id': 'honk-lan-network' });
 		const portInput = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'name': 'listen_port', 'id': 'honk-listen-port', 'min': '1024', 'max': '65535', 'step': '1' });
 				const clashEnabledInput = E('input', { 'type': 'checkbox', 'name': 'clash_api_enabled', 'id': 'honk-clash-enabled' });
+			const storeSelect = E('select', { 'class': 'cbi-input-select', 'name': 'store', 'id': 'honk-store-mode' });
+			storeSelect.appendChild(E('option', { 'value': 'db' }, _('Database (revisions)')));
+			storeSelect.appendChild(E('option', { 'value': 'file' }, _('Configuration file')));
 		const clashPortInput = E('input', { 'class': 'cbi-input-text', 'type': 'number', 'name': 'clash_api_port', 'id': 'honk-clash-port', 'min': '1024', 'max': '65535', 'step': '1' });
 		const clashSecretInput = E('input', { 'class': 'cbi-input-password', 'type': 'password', 'name': 'clash_api_secret', 'id': 'honk-clash-secret', 'autocomplete': 'new-password', 'readonly': 'readonly' });
 		clashSecretInput.addEventListener('focus', function() { clashSecretInput.removeAttribute('readonly'); });
@@ -65,6 +68,8 @@ return view.extend({
 			networkSelect.value = data.status.lan_network;
 		portInput.value = data.status && data.status.listen_port ? String(data.status.listen_port) : '9527';
 				clashEnabledInput.checked = !!(data.status && data.status.clash_api_enabled === true);
+			if (data.status && data.status.store_mode)
+				storeSelect.value = data.status.store_mode;
 		clashPortInput.value = data.status && data.status.clash_api_port ? String(data.status.clash_api_port) : '9090';
 
 		section.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Honk settings')));
@@ -88,6 +93,8 @@ return view.extend({
 				section.appendChild(field(_('Enable Clash API'), clashEnabledInput));
 		section.appendChild(field(_('Clash API port'), clashPortInput));
 		section.appendChild(field(_('Clash API secret'), clashSecretInput));
+			section.appendChild(field(_('Store mode'), storeSelect));
+			section.appendChild(E('p', { 'class': 'honk-note' }, _('The database store keeps the running configuration as revisions, so the Doona panel can import configurations and show the revision history. The file store keeps the configuration in /etc/honk/config.dae only, and the panel then has no import or revision history. The change takes effect after the service restarts.')));
 		section.appendChild(E('p', { 'class': 'honk-note' }, data.status && data.status.clash_api_secret_set ? _('A secret is set. Leave blank to keep it. Use your existing HTTPS reverse proxy for external access.') : _('A secret is required when enabling Clash API. Use 6–128 letters, numbers, dots, underscores or hyphens.')));
 		section.appendChild(E('div', { 'class': 'cbi-page-actions' }, save));
 		section.appendChild(message);
@@ -119,7 +126,7 @@ return view.extend({
 
 			save.disabled = true;
 			message.textContent = _('Saving…');
-			honk.settings(networkSelect.value, port, clashEnabledInput.checked, clashPort, clashSecret).then(honk.ensureOk).then(function(result) {
+			honk.settings(networkSelect.value, port, clashEnabledInput.checked, clashPort, clashSecret, storeSelect.value).then(honk.ensureOk).then(function(result) {
 				clashSecretInput.value = '';
 				message.textContent = honk.resultMessage(result, _('Settings saved and applied.'));
 			}).catch(function(error) {
