@@ -402,7 +402,7 @@ render_runtime_system() {
 	printf "global {\n    wan_interface: auto\n    lan_interface: '%s'\n" "$1"
 	printf "    log_level: info\n    dial_mode: domain\n    allow_insecure: false\n"
 	printf "    auto_config_kernel_parameter: true\n    data_dir: '/etc/honk'\n"
-	printf "    bootstrap_resolver: '223.5.5.5:53'\n"
+	printf "    bootstrap_resolver: '127.0.0.1:53'\n"
 	printf "    store_subscribe: true\n    nfqueue_enable: true\n}\n\n"
 	printf "assets {\n    geodata {\n"
 	printf "        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'\n"

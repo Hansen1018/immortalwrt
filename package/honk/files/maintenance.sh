@@ -584,7 +584,7 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: true
     data_dir: '/etc/honk'
-    bootstrap_resolver: '223.5.5.5:53'
+    bootstrap_resolver: '127.0.0.1:53'
     store_subscribe: $store_subscribe
     nfqueue_enable: true
 }
@@ -755,7 +755,7 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: false
     data_dir: '$shadow_data'
-    bootstrap_resolver: '223.5.5.5:53'
+    bootstrap_resolver: '127.0.0.1:53'
     store_subscribe: false
     nfqueue_enable: false
 }
@@ -800,7 +800,7 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: true
     data_dir: '/etc/honk'
-    bootstrap_resolver: '223.5.5.5:53'
+    bootstrap_resolver: '127.0.0.1:53'
     store_subscribe: true
     nfqueue_enable: true
 }

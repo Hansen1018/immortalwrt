@@ -291,7 +291,14 @@ UCI 的 `honk.main.geoip_url` / `geosite_url`，最后才用内置默认）。�
 `raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/`（与核心内置默认同源、
 无重定向、文件与校验和自洽）。
 
-直连下载需要 `global.bootstrap_resolver`（配置里是 `223.5.5.5:53`），否则域名解析不了；
+直连下载需要 `global.bootstrap_resolver`（配置里是 `127.0.0.1:53`，也就是路由器自己的
+解析器），否则域名解析不了。
+
+**这里必须用本机解析器，不能换公网上的 DNS。** 订阅的 `route: direct` 抓取同样走这个
+resolver，而且它一旦解析出结果就不再回落到系统解析器（只有失败或空结果才回落）。换成
+公网 DNS 等于替所有订阅换了 DNS：被污染或劫持的域名会解析到错的地址，订阅就再也拉
+不到数据。实测（真实核心 + 假 resolver）：配了它之后订阅 `status=stale`、节点为 0、
+日志是 `Subscription fetch deadline reached`；去掉它同一个订阅立刻正常。
 `assets.geodata.route: direct` 则让下载不走代理组（没配订阅时代理组是空的）。
 
 LuCI 侧在装进文件系统之前做两道检查：先比对发布的 `.sha256sum`，再让**核心**用候选文件
