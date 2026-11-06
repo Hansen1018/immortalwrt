@@ -894,6 +894,11 @@ restore_prepare() {
 # 文件（只有桥读它），这样升级保留下来的老管理员不必重置也能用上。
 # 与 control.sh 的 authorize-bridge 同一份实现（那边是命令行入口）。
 # 这里只把浏览器的 JSON 变成「用户名 + 一行口令」，其余交给那个脚本。
+store_authorize_auto() {
+	begin_mutation
+	exec "$CONTROL" authorize-bridge-auto
+}
+
 store_authorize() {
 	begin_mutation
 	request=$(cat)
@@ -1203,6 +1208,9 @@ list)
 				;;
 			store_authorize)
 				store_authorize
+				;;
+			store_authorize_auto)
+				store_authorize_auto
 				;;
 			add_subscription)
 				add_subscription

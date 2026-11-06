@@ -364,9 +364,11 @@ return view.extend({
 		const restoreCfgBtn = E('button', { 'class': 'cbi-button cbi-button-negative', 'type': 'button' }, _('Restore config'));
 		/* 忘记密码用：只清管理员记录，不动订阅和规则 */
 		const resetAdminBtn = E('button', { 'class': 'cbi-button', 'type': 'button' }, _('Reset administrator'));
+		/* 一键授权修订历史桥：用已保存的管理员凭据向核心查验比对，不用再输入口令 */
+		const authorizeBridgeBtn = E('button', { 'class': 'cbi-button', 'type': 'button' }, _('Authorize the revision history bridge'));
 		const fileInput = E('input', { 'type': 'file', 'accept': '.tar.gz,.gz,application/gzip', 'style': 'display:none' });
 		let backupBusy = false;
-		writeControls.push(exportBtn, importBtn, restoreCfgBtn, resetAdminBtn);
+		writeControls.push(exportBtn, importBtn, restoreCfgBtn, resetAdminBtn, authorizeBridgeBtn);
 
 		function setBackupBusy(busy) {
 			backupBusy = busy;
@@ -435,6 +437,25 @@ return view.extend({
 			});
 		});
 
+		authorizeBridgeBtn.addEventListener('click', function(ev) {
+			ev.preventDefault();
+			if (backupBusy) return;
+			setBackupBusy(true);
+			authorizeBridgeBtn.disabled = true;
+			backupMessage.textContent = _('Checking the stored administrator credentials…');
+			honk.storeAuthorizeAuto().then(honk.ensureOk).then(function(result) {
+				backupMessage.textContent = honk.resultMessage(result, _('The revision history bridge is authorized.'));
+			}).catch(function(error) {
+				var message = honk.errorMessage(error, _('Could not authorize the revision history bridge.'));
+				if (error && error.message === 'store_credential_missing')
+					message = _('No stored administrator credentials. Run the first setup again, or authorize from the command line.');
+				backupMessage.textContent = message;
+			}).finally(function() {
+				setBackupBusy(false);
+				authorizeBridgeBtn.disabled = false;
+			});
+		});
+
 		resetAdminBtn.addEventListener('click', function(ev) {
 			ev.preventDefault();
 			if (!confirm(_('Clear the Honk administrator account so the first-setup page opens again? Subscriptions, nodes and routing are kept. Honk will be stopped.')))
@@ -474,7 +495,7 @@ return view.extend({
 
 		backupSection.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Config backup')));
 		backupSection.appendChild(E('p', { 'class': 'honk-note' }, _('Export a backup archive, import one from your computer, or restore Honk to its default configuration.')));
-		backupSection.appendChild(E('div', { 'class': 'honk-actions' }, [ exportBtn, importBtn, restoreCfgBtn, resetAdminBtn ]));
+		backupSection.appendChild(E('div', { 'class': 'honk-actions' }, [ exportBtn, importBtn, restoreCfgBtn, resetAdminBtn, authorizeBridgeBtn ]));
 		backupSection.appendChild(fileInput);
 		backupSection.appendChild(backupMessage);
 

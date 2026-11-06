@@ -534,6 +534,21 @@ msgstr "无效的 %s：必须是 http(s) 链接。"
 msgid "Store mode"
 msgstr "存储模式"
 
+msgid "Authorize the revision history bridge"
+msgstr "授权修订历史桥"
+
+msgid "Checking the stored administrator credentials…"
+msgstr "正在查验已保存的管理员凭据…"
+
+msgid "The revision history bridge is authorized."
+msgstr "修订历史桥已授权。"
+
+msgid "Could not authorize the revision history bridge."
+msgstr "无法授权修订历史桥。"
+
+msgid "No stored administrator credentials. Run the first setup again, or authorize from the command line."
+msgstr "没有保存的管理员凭据。请重新做一次初始设置，或用命令行授权。"
+
 msgid "Database (revisions)"
 msgstr "数据库（修订历史）"
 

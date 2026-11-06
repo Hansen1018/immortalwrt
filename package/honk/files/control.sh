@@ -1258,6 +1258,32 @@ authorize_bridge() {
 	echo '{"ok":true,"message":"store_authorized"}'
 }
 
+# 自动授权「修订历史桥」：用已经保存下来的管理员凭据去核心验证一次，不需要用户输入。
+# 凭据是初始化（或上一次授权）时写下的；能登录成功就说明它对得上当前那个管理员，
+# 于是桥就能用这份凭据把 LuCI 改的配置文件导入状态库。
+authorize_bridge_auto() {
+	[ -f /etc/.honk-admin-credential ] && [ ! -L /etc/.honk-admin-credential ] || { echo '{"ok":false,"message":"store_credential_missing"}'; return 1; }
+	username=$(sed -n '1p' /etc/.honk-admin-credential 2>/dev/null)
+	password=$(sed -n '2p' /etc/.honk-admin-credential 2>/dev/null)
+	[ -n "$username" ] && [ -n "$password" ] || { echo '{"ok":false,"message":"store_credential_missing"}'; return 1; }
+	runtime=$("$HONK_CORE" config validate --config /etc/honk/config.dae 2>/dev/null)
+	listen=$(printf '%s' "$runtime" | sed -n 's/.*"native_api_listen":"\([^"]*\)".*/\1/p')
+	case "$listen" in ''|*[!A-Za-z0-9:._-]*) echo '{"ok":false,"message":"native_api_setup_state_unavailable"}'; return 1 ;; esac
+	esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n'; }
+	body=$(printf '{"username":"%s","password":"%s"}' "$(esc "$username")" "$(esc "$password")")
+	code=$(curl -sS --noproxy '*' --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' \
+		-X POST "http://$listen/api/v1/auth/login" -H 'Content-Type: application/json' --data-binary "$body" 2>/dev/null)
+	case "$code" in
+		200) : ;;
+		*) echo '{"ok":false,"message":"invalid_credentials"}'; return 1 ;;
+	esac
+	# 凭据有效：刷新文件，并把当前配置文件导入状态库。
+	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
+		chmod 0600 /etc/.honk-admin-credential || { rm -f /etc/.honk-admin-credential 2>/dev/null; echo '{"ok":false,"message":"config_write_failed"}'; return 1; }
+	/usr/share/honk/store-bridge.sh import "$listen" /etc/honk/config.dae >/dev/null 2>&1 || :
+	echo '{"ok":true,"message":"store_authorized"}'
+}
+
 case "$1" in
 	check)
 		preflight
@@ -1281,6 +1307,9 @@ case "$1" in
 	authorize-bridge)
 		authorize_bridge "$2"
 		;;
+	authorize-bridge-auto)
+		authorize_bridge_auto
+		;;
 	repair)
 		repair
 		;;
@@ -1288,7 +1317,7 @@ case "$1" in
 		detach
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|authorize-bridge|repair|detach}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|authorize-bridge|authorize-bridge-auto|repair|detach}" >&2
 		exit 2
 		;;
 esac
