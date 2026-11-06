@@ -892,6 +892,8 @@ restore_prepare() {
 # 授权「修订历史桥」：db 模式下核心把运行配置存在状态库里，LuCI 改的配置文件
 # 只有走 import 才能进库，而 import 需要管理员口令。验证通过后把凭据存成 0600 的
 # 文件（只有桥读它），这样升级保留下来的老管理员不必重置也能用上。
+# 与 control.sh 的 authorize-bridge 同一份实现（那边是命令行入口）。
+# 这里只把浏览器的 JSON 变成「用户名 + 一行口令」，其余交给那个脚本。
 store_authorize() {
 	begin_mutation
 	request=$(cat)
@@ -901,27 +903,7 @@ store_authorize() {
 	case "$username" in ''|*[!A-Za-z0-9_.-]*) emit_result false invalid_credentials; return 1 ;; esac
 	[ ${#username} -le 64 ] || { emit_result false invalid_credentials; return 1; }
 	[ ${#password} -ge 8 ] && [ ${#password} -le 128 ] || { emit_result false invalid_credentials; return 1; }
-	runtime=$("$CORE" config validate --config /etc/honk/config.dae 2>/dev/null)
-	listen=$(printf '%s' "$runtime" | jsonfilter -e '@.runtime.native_api_listen' 2>/dev/null)
-	case "$listen" in ''|*[!A-Za-z0-9:._-]*) emit_result false native_api_setup_state_unavailable; return 1 ;; esac
-	auth_file=$(mktemp /tmp/honk-store-auth.XXXXXX) || { emit_result false temporary_storage_unavailable; return 1; }
-	chmod 0600 "$auth_file" || { rm -f "$auth_file"; emit_result false temporary_storage_unavailable; return 1; }
-	json_init
-	json_add_string username "$username"
-	json_add_string password "$password"
-	json_dump > "$auth_file" || { rm -f "$auth_file"; emit_result false temporary_storage_unavailable; return 1; }
-	code=$(curl -sS --noproxy '*' --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' \
-		-X POST "http://$listen/api/v1/auth/login" -H 'Content-Type: application/json' --data-binary @"$auth_file" 2>/dev/null)
-	rm -f "$auth_file"
-	case "$code" in
-		200) : ;;
-		*) emit_result false invalid_credentials; return 1 ;;
-	esac
-	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
-		chmod 0600 /etc/.honk-admin-credential || { rm -f /etc/.honk-admin-credential 2>/dev/null; emit_result false config_write_failed; return 1; }
-	# 立刻把当前配置文件导入状态库，保证库里就是文件里的那一份。
-	/usr/share/honk/store-bridge.sh import "$listen" /etc/honk/config.dae >/dev/null 2>&1 || :
-	emit_result true store_authorized
+	printf '%s\n' "$password" | "$CONTROL" authorize-bridge "$username"
 }
 
 reset_admin() {

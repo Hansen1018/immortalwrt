@@ -284,6 +284,20 @@ only through import with `replace:true`"）。所以包里加了一座桥
 （口令先在核心那验证一次，通过后存成 0600 的文件，并立刻把当前配置文件导入成
 一条修订）。概览页的「存储模式」和「修订历史桥」两行就是给这种情况看的。
 
+**也可以在命令行授权**（不经过浏览器，适合页面看起来没有输入框的时候）：
+
+```sh
+printf '你的管理员口令\n' | /usr/share/honk/control.sh authorize-bridge admin
+```
+
+输出 `{"ok":true,"message":"store_authorized"}` 就是成功（口令错会返回
+`invalid_credentials`）。口令从标准输入读，不进 shell 历史也不进进程列表。
+
+**为什么 LuCI 页面有时看不到新控件**：LuCI 的静态资源缓存键是 LuCI 自己的版本号
+（`luci.js` 的 `?v=`），**不含本包的版本**，所以升级 luci-app-honk 之后浏览器往往
+还在用旧的 JS。升级后**强制刷新一次页面**（Ctrl+F5，或清理浏览器缓存）即可；
+不想刷新就用上面的命令行入口。
+
 ### 地理数据更新：面板与 LuCI 共用一个源
 
 面板里的「地理数据更新」走核心自带的 API（`POST /api/v1/geodata/update`），LuCI 里的

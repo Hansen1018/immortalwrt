@@ -1226,6 +1226,38 @@ EOF
 	echo '{"ok":true,"message":"administrator_initialized"}'
 }
 
+# 授权「修订历史桥」：db 模式下 LuCI 改的配置文件只有走 import 才能进状态库，
+# 而 import 要用管理员口令鉴权。这里验证口令后把它存成 0600 的文件，桥就有办法调用了。
+# 升级保留下来的管理员不用重置也能用；口令只写在这个文件里，只有桥读它。
+#
+# 用法：control.sh authorize-bridge <用户名>，口令从标准输入读一行（不经过 shell 历史与 ps）。
+# 这里刻意不用 jshn/jsonfilter：命令行走的是路由器上最朴素的路径，坏了也能手工救。
+authorize_bridge() {
+	username="$1"
+	case "$username" in ''|*[!A-Za-z0-9_.-]*) echo '{"ok":false,"message":"invalid_credentials"}'; return 1 ;; esac
+	[ ${#username} -le 64 ] || { echo '{"ok":false,"message":"invalid_credentials"}'; return 1; }
+	password=$(head -n 1 2>/dev/null)
+	[ ${#password} -ge 8 ] && [ ${#password} -le 128 ] || { echo '{"ok":false,"message":"invalid_credentials"}'; return 1; }
+	runtime=$("$HONK_CORE" config validate --config /etc/honk/config.dae 2>/dev/null)
+	listen=$(printf '%s' "$runtime" | sed -n 's/.*"native_api_listen":"\([^"]*\)".*/\1/p')
+	case "$listen" in ''|*[!A-Za-z0-9:._-]*) echo '{"ok":false,"message":"native_api_setup_state_unavailable"}'; return 1 ;; esac
+	# the JSON body: escape the backslash and the quote, drop the newline
+	esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n'; }
+	body=$(printf '{"username":"%s","password":"%s"}' "$(esc "$username")" "$(esc "$password")")
+	# the body travels as an argument: the standard input already carried the password.
+	code=$(curl -sS --noproxy '*' --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' \
+		-X POST "http://$listen/api/v1/auth/login" -H 'Content-Type: application/json' --data-binary "$body" 2>/dev/null)
+	case "$code" in
+		200) : ;;
+		*) echo '{"ok":false,"message":"invalid_credentials"}'; return 1 ;;
+	esac
+	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
+		chmod 0600 /etc/.honk-admin-credential || { rm -f /etc/.honk-admin-credential 2>/dev/null; echo '{"ok":false,"message":"config_write_failed"}'; return 1; }
+	# 立刻把当前配置文件导入状态库，保证库里就是文件里的那一份。
+	/usr/share/honk/store-bridge.sh import "$listen" /etc/honk/config.dae >/dev/null 2>&1 || :
+	echo '{"ok":true,"message":"store_authorized"}'
+}
+
 case "$1" in
 	check)
 		preflight
@@ -1246,6 +1278,9 @@ case "$1" in
 	settings)
 		settings
 		;;
+	authorize-bridge)
+		authorize_bridge "$2"
+		;;
 	repair)
 		repair
 		;;
@@ -1253,7 +1288,7 @@ case "$1" in
 		detach
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|repair|detach}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|authorize-bridge|repair|detach}" >&2
 		exit 2
 		;;
 esac
