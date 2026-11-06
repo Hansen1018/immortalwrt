@@ -204,8 +204,8 @@ honk 有两种配置存储模式，由 UCI 选项 `honk.main.store` 决定（默
 
 | 模式 | 核心启动参数 | 导入 | 修订历史 |
 |---|---|---|---|
-| `db`（默认） | `honk-core --config /etc/honk/config.dae --store db` | 可用 `/api/v1/x-honk/config/import` | 可用 `/api/v1/x-honk/config/revisions` |
-| `file` | `honk-core --config /etc/honk/config.dae` | 路由返回 `404 capability_not_supported` | 同样返回 404 |
+| `db`（默认） | `honk-core --config /etc/honk/config.dae --store db --data-dir /etc/honk` | 可用 `/api/v1/x-honk/config/import` | 可用 `/api/v1/x-honk/config/revisions` |
+| `file` | `honk-core --config /etc/honk/config.dae --data-dir /etc/honk` | 路由返回 `404 capability_not_supported` | 同样返回 404 |
 
 **Doona 面板里的「导入」和「配置修订历史」只在 `db` 模式下存在** —— 文件模式下这两个
 路由由核心直接回 404，界面不会显示它们。
@@ -215,6 +215,12 @@ honk 有两种配置存储模式，由 UCI 选项 `honk.main.store` 决定（默
 - `experimental.native_api.enabled: true`
 - `experimental.native_api.config_write: true`
 - 一个管理员凭据（面板的首次初始化会通过 `/api/v1/auth/setup` 建立）
+- **`--data-dir` 必须与配置里的 `global.data_dir` 完全一致**（这里是 `/etc/honk`）。
+  核心会直接比较这两个值，不一致就退出：
+  `global.data_dir /etc/honk differs from --data-dir /var/lib/honk`。
+  `honk.init` 因此会从配置里读出 `data_dir` 再传给核心；`control.sh`、`maintenance.sh`
+  里的 mock 核心也传同一个值 —— Doona 管理员口令存在 `<data_dir>/state/honk.db`，
+  两边不一致的话 mock 建好的账号真实核心看不到（面板会一直提示先初始化）。
 
 `db` 模式下的两点变化：
 
@@ -227,11 +233,45 @@ honk 有两种配置存储模式，由 UCI 选项 `honk.main.store` 决定（默
 回到文件模式（honk 官方的步骤）：
 
 ```sh
-honk-core config export --out /etc/honk/config.dae
+honk-core config export --out /etc/honk/config.dae --data-dir /etc/honk
 uci set honk.main.store='file'
 uci commit honk
 service honk restart
 ```
+
+（`config export` 与 `admin reset` 同样受 `--data-dir` 约束，漏掉会报
+`global.data_dir ... differs from --data-dir ...`。）
+
+### `kernel argv capture unavailable; using thread comm`
+
+核心日志里的这行是**降级提示，不是启动失败**。
+
+`pname(...)` 规则要匹配完整的 `argv[0]`，honk 于是让 **cgroup 程序**去读调用者任务的
+`mm->arg_start`。而内核给 cgroup 程序的 helper 白名单
+（`kernel/bpf/cgroup.c` 里的 `cgroup_current_func_proto`）只放行
+`bpf_get_current_uid_gid`、`bpf_get_current_pid_tgid`、`bpf_get_current_comm`、
+`bpf_get_cgroup_classid`、`bpf_current_task_under_cgroup`；
+argv0 那条路需要的 `bpf_get_current_task`、`bpf_probe_read_kernel`、
+`bpf_probe_read_user_str`、`bpf_loop` **都不在白名单里**，验证器因此直接拒绝那个程序，
+honk 就退回用线程的 `comm`。
+
+上游自己知道这件事：代码注释写着「有些内核全局认识这些 helper，却拒绝 cgroup 程序使用」，
+路由参考文档也把 `comm` 回落写成了既定行为 ——「当运行期 BTF 偏移量或内核可安全提供的
+argv 访问不可得时，cgroup 钩子改用调用线程的 `comm`」。
+
+实际影响：
+
+- `pname(...)` 规则**照常工作**，只是匹配对象从 `argv[0]` 的 basename 变成 15 字节的线程名
+  （只有名字超过 15 字节、或进程自己改过名时才有差别）；
+- 转发、DNS、订阅以及其它功能都不受影响。
+
+包层面无法关掉它：探测逻辑在预编译核心自带的 eBPF 对象里，而内核的 helper 白名单不是包能改的。
+要拿到真正的 `argv[0]`，需要上游改动（cgroup 程序里只取 pid、`argv[0]` 交给用户态解析，
+或者把读取挪到白名单允许的程序类型里），并配套重编 eBPF 对象。
+
+包能保证的是这个条件的另一半：**BTF 侧是齐的** —— 我们的内核带完整 BTF，
+`task_struct.mm` 与 `mm_struct.arg_start` 都能解析出来，honk 的 `process_name::detect`
+拿得到偏移量。
 
 ## License
 ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html).

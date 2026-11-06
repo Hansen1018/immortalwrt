@@ -1024,7 +1024,11 @@ api_discovery() {
 mock_start() {
 	mock_config=$1
 	mock_log=$2
-	DAE_LOCATION_ASSET=/usr/share/v2ray "$HONK_CORE" --config "$mock_config" --mock-ebpf > "$mock_log" 2>&1 &
+	# 与真实核心用同一个 --data-dir：Doona 管理员口令存在 <data_dir>/state/honk.db，
+	# 两边不一致的话 mock 建好的账号真实核心看不到（登录永远提示先初始化）。
+	mock_data_dir=$(sed -n "s/^[[:space:]]*data_dir:[[:space:]]*'\([^']*\)'.*/\1/p" "$mock_config" 2>/dev/null | head -1)
+	[ -n "$mock_data_dir" ] || mock_data_dir=/etc/honk
+	DAE_LOCATION_ASSET=/usr/share/v2ray "$HONK_CORE" --config "$mock_config" --data-dir "$mock_data_dir" --mock-ebpf > "$mock_log" 2>&1 &
 	mock_pid=$!
 	mock_identity=""
 	attempt=0
