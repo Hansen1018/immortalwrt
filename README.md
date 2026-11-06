@@ -242,6 +242,33 @@ service honk restart
 （`config export` 与 `admin reset` 同样受 `--data-dir` 约束，漏掉会报
 `global.data_dir ... differs from --data-dir ...`。）
 
+### 存储模式（db）与修订历史
+
+核心有两种存储模式，由 UCI 的 `honk.main.store` 决定（默认 `db`）：
+
+- `file`：以 `/etc/honk/config.dae` 为准。
+- `db`：核心托管配置，`.dae` 源作为**修订**存在 `<data_dir>/state/honk.db` 里。
+
+只有 `db` 模式才提供配置导入与修订历史（file 模式下核心报告
+`config_import.available=false`，面板里的导入与修订历史就是灰的）。所以 `honk.init`
+会按 UCI 的设置传 `--store db --data-dir <global.data_dir>`（两者必须完全一致，
+否则核心直接退出）。状态页会同时显示**配置的**与**实际生效的**存储模式——两者不一致
+时会有告警。
+
+`db` 模式有个副作用：**文件只在第一次启动时被读一次**（导入成修订 1），之后每次启动跑
+的是库里的活动修订，文件再改也不会自动生效（上游原话："File edits reach the database
+only through import with `replace:true`"）。所以包里加了一座桥
+`/usr/share/honk/store-bridge.sh`：服务起来后，如果配置文件的内容变了，它就调
+`POST /api/v1/x-honk/config/import`（`replace:true`）把文件记成新修订。
+
+桥是**按文件哈希触发**的（标记在 `/etc/honk/.file-import-hash`）：文件没变就什么都不做。
+这样面板里改的东西（存在库里）不会因为一次重启就被文件覆盖，而 LuCI 里改的配置在下次
+启动时又会自动进库。
+
+调用 import 需要管理员口令，所以初始化时把口令写进 `/etc/.honk-admin-credential`
+（0600，只有 root 能读）。它只给桥用，面板与 LuCI 都不读它；在 LuCI 的「维护 → 重置
+管理员」时会一并删掉。
+
 ### 地理数据更新：面板与 LuCI 共用一个源
 
 面板里的「地理数据更新」走核心自带的 API（`POST /api/v1/geodata/update`），LuCI 里的

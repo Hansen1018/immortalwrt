@@ -64,7 +64,12 @@ start_service() {
 	honk_data_dir=$(sed -n "s/^[[:space:]]*data_dir:[[:space:]]*'\([^']*\)'.*/\1/p" "$HONK_CONFIG" 2>/dev/null | head -1)
 	[ -n "$honk_data_dir" ] || honk_data_dir=$(sed -n "s/^[[:space:]]*data_dir:[[:space:]]*'\([^']*\)'.*/\1/p" /etc/honk/system.dae 2>/dev/null | head -1)
 	[ -n "$honk_data_dir" ] || honk_data_dir=/etc/honk
-	store_mode=$(config_get store main store db)
+	# config_get 给了 option（第三个参数）时是 export 语义，不会往标准输出写东西，
+	# 所以不能写成 $(config_get ...)：那样 store_mode 恒为空，核心会一直落在 file 模式。
+	# file 模式下核心不发布 config_import/config_revisions（config_import.available=false），
+	# Doona 面板的导入与修订历史就一直用不了。
+	config_get store_mode main store db
+	[ -n "$store_mode" ] || store_mode=db
 	case "$store_mode" in
 		db) procd_set_param command /usr/bin/honk-core --config "$HONK_CONFIG" --disable-timestamp --store db --data-dir "$honk_data_dir" ;;
 		file) procd_set_param command /usr/bin/honk-core --config "$HONK_CONFIG" --disable-timestamp --data-dir "$honk_data_dir" ;;
@@ -82,6 +87,13 @@ start_service() {
 	procd_set_param stderr 1
 	procd_set_param respawn 3600 5 5
 	procd_set_param term_timeout 20
+	# db 模式：配置文件只有通过 import 才进状态库，核心跑的是库里那份修订。
+	# 服务起来后补一次导入：文件没变就什么都不做，面板里的改动不会被覆盖。
+	if [ "$store_mode" = db ] && [ -n "$ready_api_listen" ]; then
+		(
+			/usr/share/honk/store-bridge.sh import "$ready_api_listen" "$HONK_CONFIG"
+		) </dev/null >/dev/null 2>&1 &
+	fi
 	procd_close_instance
 }
 

@@ -61,8 +61,20 @@ status() {
 	config_get_bool clash_api_enabled main clash_api_enabled 0
 	config_get clash_api_port main clash_api_port 9090
 	config_get clash_api_secret main clash_api_secret ''
+	config_get store_configured main store file
 	managed_pid=$(procd_core_pid)
 	if is_managed_core "$managed_pid"; then running=1; else running=0; fi
+	# 实际生效的存储模式：读运行中核心的命令行。只看 UCI 是不够的，
+	# 配置写的是 db 而启动参数没带上时，两者会分家（面板就会说导入不可用）。
+	store_active=unknown
+	if [ -n "$managed_pid" ] && [ -r "/proc/$managed_pid/cmdline" ]; then
+		core_cmdline=$(tr '\000' ' ' < "/proc/$managed_pid/cmdline" 2>/dev/null)
+		case "$core_cmdline" in
+			*' --store db '*) store_active=db ;;
+			*' --store file '*) store_active=file ;;
+			*) store_active=file ;;
+		esac
+	fi
 	# 只有 system.dae 负责这些字段时，UCI 里的端口/密钥才有意义。
 	settings_owner=$(config_owner /etc/honk/config.dae)
 	api_enabled=0
@@ -154,6 +166,8 @@ status() {
 	json_add_boolean boot_enabled "$boot_enabled"
 	json_add_boolean running "$running"
 	json_add_string settings_owner "$settings_owner"
+	json_add_string store_mode "$store_configured"
+	json_add_string store_active "$store_active"
 	json_add_boolean config_pending "$config_pending"
 	json_add_boolean draft_pending "$draft_pending"
 	json_add_boolean legacy_draft "$legacy_draft"
@@ -888,6 +902,8 @@ reset_admin() {
 		return 1
 	fi
 	rm -f "${reset_backup:-}"
+	# 管理员没了，桥用的凭据与标记一并清掉（下次初始化会重建）。
+	rm -f /etc/.honk-admin-credential /etc/honk/.file-import-hash 2>/dev/null || :
 	emit_result true administrator_reset
 }
 

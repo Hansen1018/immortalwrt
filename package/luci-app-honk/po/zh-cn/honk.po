@@ -531,6 +531,12 @@ msgstr "正在初始化……"
 msgid "Invalid %s: must be an http(s) URL."
 msgstr "无效的 %s：必须是 http(s) 链接。"
 
+msgid "Store mode"
+msgstr "存储模式"
+
+msgid "The store mode in the configuration (%s) is not the one the core runs with (%s). The configuration import and the revision history need the database store."
+msgstr "配置里的存储模式（%s）与核心实际运行的模式（%s）不一致。配置导入与修订历史需要数据库存储模式。"
+
 msgid "Kernel"
 msgstr "内核"
 

@@ -24,6 +24,16 @@ function getNetworkNames(networks) {
 	}).sort();
 }
 
+function storeModeText(status) {
+	if (!status || !status.store_mode)
+		return '';
+	if (!status.store_active || status.store_active === 'unknown')
+		return status.store_mode;
+	if (status.store_mode === status.store_active)
+		return status.store_mode;
+	return status.store_mode + ' \u2192 ' + status.store_active;
+}
+
 function metaItem(label, value) {
 	return E('span', { 'class': 'honk-meta-item' }, [
 		E('span', { 'class': 'honk-meta-label' }, label),
@@ -178,7 +188,8 @@ return view.extend({
 				E('div', { 'class': 'honk-meta' }, [
 					metaItem(_('Core version'), status.core_version),
 					metaItem(_('Doona version'), status.doona_version),
-					metaItem(_('Kernel'), status.kernel)
+					metaItem(_('Kernel'), status.kernel),
+					metaItem(_('Store mode'), storeModeText(status))
 				])
 			]);
 
@@ -192,6 +203,10 @@ return view.extend({
 				statusCard.appendChild(E('ul', { 'class': 'alert-message' }, errors.map(function(token) {
 					return E('li', {}, honk.statusIssue(token));
 				})));
+
+			if (status.store_mode && status.store_active && status.store_mode !== status.store_active)
+				statusCard.appendChild(E('p', { 'class': 'alert-message', 'role': 'status' },
+					_('The store mode in the configuration (%s) is not the one the core runs with (%s). The configuration import and the revision history need the database store.').format(status.store_mode, status.store_active)));
 
 			if (!status.initialized)
 				statusCard.appendChild(E('p', { 'class': 'honk-note', 'role': 'status' }, _('Not initialized yet. Finish the first setup below, then Honk can be started.')));

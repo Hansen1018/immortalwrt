@@ -1206,6 +1206,14 @@ EOF
 		echo '{"ok":false,"message":"uci_commit_failed_restored_loopback"}'
 		return 1
 	}
+	# db 模式的桥需要管理员口令来调用 import API：配置文件只有走 import 才进状态库，
+	# 否则核心只跑库里那份修订，LuCI 里改的配置不会生效。口令只写在这个 0600 文件里，
+	# 给 store-bridge.sh 用，面板与 LuCI 都不读它；重置管理员时会一并删掉。
+	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
+		chmod 0600 /etc/.honk-admin-credential || rm -f /etc/.honk-admin-credential 2>/dev/null
+	# 标记：当前文件的内容已经进过状态库（首次启动时核心自己导入的），
+	# 这样桥不会马上再导入一次。文件改动后哈希变了，桥才会导入。
+	sha256sum /etc/honk/config.dae 2>/dev/null | awk '{print $1}' > /etc/honk/.file-import-hash 2>/dev/null || :
 	system_written_hash=""
 	password=""
 	username=""
