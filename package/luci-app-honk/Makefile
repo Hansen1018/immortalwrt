@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-honk
 PKG_VERSION:=2026.11.06
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)
 
 PKG_SOURCE:=doona-8a4c2c8a-bfee81f169a5.tar.gz

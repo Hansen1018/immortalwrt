@@ -74,6 +74,7 @@ const callBackup = rpc.declare({ object: 'honk', method: 'backup', expect: { '':
 const callRestore = rpc.declare({ object: 'honk', method: 'restore', expect: { '': {} } });
 const callRestorePrepare = rpc.declare({ object: 'honk', method: 'restore_prepare', expect: { '': {} } });
 const callResetAdmin = rpc.declare({ object: 'honk', method: 'reset_admin', expect: { '': {} } });
+const callStoreAuthorize = rpc.declare({ object: 'honk', method: 'store_authorize', params: [ 'username', 'password' ], expect: { '': {} } });
 const callReset = rpc.declare({ object: 'honk', method: 'reset', expect: { '': {} } });
 const callJobStatus = rpc.declare({
 	object: 'honk',
@@ -197,6 +198,7 @@ function tokenMessage(token) {
 		settings_saved: _('Settings saved and applied.'),
 		initialized: _('Honk initialized.'),
 		administrator_initialized: _('Honk initialized.'),
+		store_authorized: _('The revision history bridge is authorized.'),
 		system_config_healthy: _('System check passed.'),
 		system_config_repaired: _('Repair completed.'),
 		backup_created: _('Backup created.'),
@@ -488,6 +490,7 @@ return baseclass.extend({
 	restore: callRestore,
 	restorePrepare: callRestorePrepare,
 	resetAdmin: callResetAdmin,
+	storeAuthorize: callStoreAuthorize,
 	reset: callReset,
 	logs: callLogs,
 	updateCheck: callUpdateCheck,

@@ -24,6 +24,52 @@ function getNetworkNames(networks) {
 	}).sort();
 }
 
+function bridgeText(status) {
+	if (!status || !status.store_bridge)
+		return '';
+	if (status.store_bridge === 'ready')
+		return _('Authorized');
+	if (status.store_bridge === 'no_credential')
+		return _('Not authorized');
+	return _('Not needed');
+}
+
+/* db 模式下核心把运行配置存在状态库里，LuCI 改的配置文件只有走 import 才进库，
+   而 import 要用管理员口令鉴权。这里让用户输一次口令完成授权。 */
+function renderBridgeAuthorize(refresh) {
+	const form = E('form', { 'class': 'honk-card' });
+	const username = E('input', { 'type': 'text', 'name': 'username', 'class': 'cbi-input-text', 'required': true, 'autocomplete': 'username' });
+	const password = E('input', { 'type': 'password', 'name': 'password', 'class': 'cbi-input-text', 'required': true, 'autocomplete': 'current-password' });
+	const message = E('p', { 'class': 'honk-status-msg', 'role': 'status' }, '');
+	const submit = E('button', { 'class': 'cbi-button cbi-button-positive', 'type': 'submit' }, _('Authorize'));
+	form.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Revision history bridge')));
+	form.appendChild(E('p', { 'class': 'honk-note' }, _('The core keeps the running configuration as revisions in its database, so a configuration written in LuCI has to be imported. The import is authenticated with the administrator password, which is then kept in a root-only file for that call.')));
+	form.appendChild(field(_('Username'), username));
+	form.appendChild(field(_('Password'), password));
+	form.appendChild(message);
+	form.addEventListener('submit', function(ev) {
+		ev.preventDefault();
+		const user = username.value.trim();
+		const secret = password.value;
+		if (!user || !secret) {
+			message.textContent = _('Enter both a username and a password.');
+			return;
+		}
+		submit.disabled = true;
+		message.textContent = _('Authorizing\u2026');
+		honk.storeAuthorize(user, secret).then(honk.ensureOk).then(function(result) {
+			password.value = '';
+			message.textContent = honk.resultMessage(result, _('The revision history bridge is authorized.'));
+			refresh();
+		}).catch(function(error) {
+			message.textContent = honk.errorMessage(error, _('The administrator credentials were refused.'));
+		}).finally(function() {
+			submit.disabled = false;
+		});
+	});
+	return form;
+}
+
 function storeModeText(status) {
 	if (!status || !status.store_mode)
 		return '';
@@ -189,7 +235,8 @@ return view.extend({
 					metaItem(_('Core version'), status.core_version),
 					metaItem(_('Doona version'), status.doona_version),
 					metaItem(_('Kernel'), status.kernel),
-					metaItem(_('Store mode'), storeModeText(status))
+					metaItem(_('Store mode'), storeModeText(status)),
+					metaItem(_('Revision history bridge'), bridgeText(status))
 				])
 			]);
 
@@ -207,6 +254,9 @@ return view.extend({
 			if (status.store_mode && status.store_active && status.store_mode !== status.store_active)
 				statusCard.appendChild(E('p', { 'class': 'alert-message', 'role': 'status' },
 					_('The store mode in the configuration (%s) is not the one the core runs with (%s). The configuration import and the revision history need the database store.').format(status.store_mode, status.store_active)));
+
+			if (status.store_bridge === 'no_credential')
+				statusCard.appendChild(renderBridgeAuthorize(refresh));
 
 			if (!status.initialized)
 				statusCard.appendChild(E('p', { 'class': 'honk-note', 'role': 'status' }, _('Not initialized yet. Finish the first setup below, then Honk can be started.')));

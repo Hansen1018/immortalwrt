@@ -534,6 +534,36 @@ msgstr "无效的 %s：必须是 http(s) 链接。"
 msgid "Store mode"
 msgstr "存储模式"
 
+msgid "Revision history bridge"
+msgstr "修订历史桥"
+
+msgid "Authorized"
+msgstr "已授权"
+
+msgid "Not authorized"
+msgstr "未授权"
+
+msgid "Not needed"
+msgstr "不需要"
+
+msgid "Authorize"
+msgstr "授权"
+
+msgid "The core keeps the running configuration as revisions in its database, so a configuration written in LuCI has to be imported. The import is authenticated with the administrator password, which is then kept in a root-only file for that call."
+msgstr "核心把运行配置以修订的形式存在状态库里，所以 LuCI 里写的配置需要导入才生效。导入要用管理员口令鉴权，验证通过后口令只保存在一个仅 root 可读的文件里，供这一次调用使用。"
+
+msgid "Enter both a username and a password."
+msgstr "请填写用户名与密码。"
+
+msgid "Authorizing\u2026"
+msgstr "正在授权\u2026"
+
+msgid "The revision history bridge is authorized."
+msgstr "修订历史桥已授权。"
+
+msgid "The administrator credentials were refused."
+msgstr "管理员凭据被拒绝。"
+
 msgid "The store mode in the configuration (%s) is not the one the core runs with (%s). The configuration import and the revision history need the database store."
 msgstr "配置里的存储模式（%s）与核心实际运行的模式（%s）不一致。配置导入与修订历史需要数据库存储模式。"
 
