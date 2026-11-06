@@ -584,8 +584,19 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: true
     data_dir: '/etc/honk'
+    bootstrap_resolver: '223.5.5.5:53'
     store_subscribe: $store_subscribe
     nfqueue_enable: true
+}
+
+# 地理数据的下载源：与核心配置、LuCI 的 update-geo.sh 共用同一份来源，
+# 面板更新与 LuCI 更新拿到的字节一致，核心就不会重复覆盖，两边不互相干扰。
+assets {
+    geodata {
+        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
+        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
+        route: direct
+    }
 }
 
 experimental {
@@ -744,8 +755,19 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: false
     data_dir: '$shadow_data'
+    bootstrap_resolver: '223.5.5.5:53'
     store_subscribe: false
     nfqueue_enable: false
+}
+
+# 地理数据的下载源：与核心配置、LuCI 的 update-geo.sh 共用同一份来源，
+# 面板更新与 LuCI 更新拿到的字节一致，核心就不会重复覆盖，两边不互相干扰。
+assets {
+    geodata {
+        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
+        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
+        route: direct
+    }
 }
 
 experimental {
@@ -778,8 +800,19 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: true
     data_dir: '/etc/honk'
+    bootstrap_resolver: '223.5.5.5:53'
     store_subscribe: true
     nfqueue_enable: true
+}
+
+# 地理数据的下载源：与核心配置、LuCI 的 update-geo.sh 共用同一份来源，
+# 面板更新与 LuCI 更新拿到的字节一致，核心就不会重复覆盖，两边不互相干扰。
+assets {
+    geodata {
+        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
+        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
+        route: direct
+    }
 }
 
 experimental {

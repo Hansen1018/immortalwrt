@@ -6,8 +6,21 @@ global {
     allow_insecure: false
     auto_config_kernel_parameter: true
     data_dir: '/etc/honk'
+    bootstrap_resolver: '223.5.5.5:53'
     store_subscribe: true
     nfqueue_enable: true
+}
+
+# 地理数据的下载源：面板（核心自带 API）与 LuCI 的 update-geo.sh 共用这一份，
+# 两条路径拿到的字节相同，核心就不会重复覆盖，两边也不会互相干扰。
+# route: direct —— 下载不走代理组（没配订阅时代理组是空的）；直连下载需要
+# global.bootstrap_resolver 才能解析域名（没有系统 DNS 回退）。
+assets {
+    geodata {
+        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
+        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
+        route: direct
+    }
 }
 
 experimental {

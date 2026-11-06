@@ -242,6 +242,27 @@ service honk restart
 （`config export` 与 `admin reset` 同样受 `--data-dir` 约束，漏掉会报
 `global.data_dir ... differs from --data-dir ...`。）
 
+### 地理数据更新：面板与 LuCI 共用一个源
+
+面板里的「地理数据更新」走核心自带的 API（`POST /api/v1/geodata/update`），LuCI 里的
+「更新」走 `update-geo.sh`。两者下载**同一个源** —— 配置里的
+`assets.geodata.geosite` / `assets.geodata.geoip`，LuCI 脚本也从这里读（读不到才退回
+UCI 的 `honk.main.geoip_url` / `geosite_url`，最后才用内置默认）。这样两条路径拿到的是
+同一份字节，核心会判定「内容一致」而不重复覆盖，**两边不会互相干扰**。
+
+源必须是「文件与 `.sha256sum` 自洽」的镜像。校验和对不上时，核心会拒绝替换并沿用当前
+文件，面板报的就是「新的地理数据文件未通过校验：文件无法解析，或缺少规则使用的分类」。
+之前默认用的 jsdelivr CDN 镜像，`geoip.dat` 是陈旧副本（16,546,071 字节），而它发布的
+校验和是另一个文件的（`90b78ab8…`），校验永远过不去；现在改用
+`raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/`（与核心内置默认同源、
+无重定向、文件与校验和自洽）。
+
+直连下载需要 `global.bootstrap_resolver`（配置里是 `223.5.5.5:53`），否则域名解析不了；
+`assets.geodata.route: direct` 则让下载不走代理组（没配订阅时代理组是空的）。
+
+LuCI 侧在装进文件系统之前做两道检查：先比对发布的 `.sha256sum`，再让**核心**用候选文件
+编译一遍当前配置 —— 只有核心能判断「文件能不能解析、规则用到的分类齐不齐」。
+
 ### `kernel argv capture unavailable; using thread comm`
 
 核心日志里的这行是**降级提示，不是启动失败**。
