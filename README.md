@@ -138,6 +138,14 @@ Side effects of the change:
 * the kernel keeps full DWARF debug info, which makes the kernel build slower and bigger
   in the build directory (the shipped image is not affected by the DWARF part).
 
+### 版本号跟着上游走
+
+包的版本号与上游 [kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk) 的发布
+保持一致：上游出 `v2026.11.07-r1`，这里的 `honk` 与 `luci-app-honk` 就是
+`2026.11.07-r1`。这样从上游软件源切换过来时 apk 看到的是同版本，不会出现
+「降级」或 world 冲突；我们的改动（面板管理员、地理数据、存储模式同步等）
+随上游的每次发布一起重新发布。
+
 ### Build it yourself
 
 ```bash
@@ -309,8 +317,10 @@ SQLite 的 WAL 模式**：建管理员时记录先写进 `honk.db-wal`，要等 
 **原地替换**加载着的那份 —— 写不进去，面板的「立即更新」就停在替换阶段
 （`replacement_failed`），文件其实一个字节都没换。数据目录可写又是持久的，所以：
 
-- 首次启动时 `control.sh` 把数据目录里的两个文件**链接**到软件包的那份，规则立刻能用；
-- 核心更新时把链接换成真文件（数据目录里），之后每次原地替换；
+- 首次启动时 `control.sh` 把软件包的那份**复制**到数据目录，规则立刻能用。必须是真实
+  文件：核心拒绝在符号链接旁边落盘（实测报的就是替换失败）；
+- 复制之后核心更新时就地替换数据目录里那份；
+- 复制不了（overlay 空间不够）就退回软件包那份：核心照常能起，只是更新仍替换不了；
 - `DAE_LOCATION_ASSET` 指向数据目录，核心因此在数据目录里找、在数据目录里替换。
 
 **源用核心自己的内置列表**：MetaCubeX 的 `meta-rules-dat`，`raw.githubusercontent`
@@ -324,23 +334,19 @@ SQLite 的 WAL 模式**：建管理员时记录先写进 `honk.db-wal`，要等 
 没有系统解析器回退。这里用路由器自己的 `127.0.0.1:53`（dnsmasq），它永远可达，
 答案与系统解析器一致。
 
-### 地理数据更新：面板与 LuCI 共用一个源
+### 面板与 LuCI 的两条地理数据路径
 
-面板里的「地理数据更新」走核心自带的 API（`POST /api/v1/geodata/update`），LuCI 里的
-「更新」走 `update-geo.sh`。两者下载**同一个源** —— 配置里的
-`assets.geodata.geosite` / `assets.geodata.geoip`，LuCI 脚本也从这里读（读不到才退回
-UCI 的 `honk.main.geoip_url` / `geosite_url`，最后才用内置默认）。这样两条路径拿到的是
-同一份字节，核心会判定「内容一致」而不重复覆盖，**两边不会互相干扰**。
+面板里的「立即更新」走核心自带的 API（`POST /api/v1/geodata/update`），LuCI 里的「更新」
+走 `update-geo.sh`。两者下载**同一个源**、装到**同一个目录**（数据目录），拿到的字节
+相同，核心会判定「内容一致」而不重复覆盖，**两边不会互相干扰**。
 
-源必须是「文件与 `.sha256sum` 自洽」的镜像。校验和对不上时，核心会拒绝替换并沿用当前
-文件，面板报的就是「新的地理数据文件未通过校验：文件无法解析，或缺少规则使用的分类」。
-之前默认用的 jsdelivr CDN 镜像，`geoip.dat` 是陈旧副本（16,546,071 字节），而它发布的
-校验和是另一个文件的（`90b78ab8…`），校验永远过不去；现在改用
-`raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/`（与核心内置默认同源、
-无重定向、文件与校验和自洽）。
+源由核心的内置列表给出（MetaCubeX，每个文件两个地址，第一个不通就换第二个）；配置里
+只留 `route: direct`，LuCI 脚本用同一份地址（第一个不通也换第二个）。用户在设置页填了
+自己的 URL 时，核心按配置优先，LuCI 脚本也优先用它。
 
-直连下载需要 `global.bootstrap_resolver`（配置里是 `127.0.0.1:53`，也就是路由器自己的
-解析器），否则域名解析不了。
+源必须是「文件与 `.sha256sum` 自洽」的镜像：校验和对不上时核心会拒绝替换并沿用当前
+文件，面板报的是「新的地理数据文件未通过校验：文件无法解析，或缺少规则使用的分类」。
+校验和按上游的规则取 `<地址>.sha256sum`（404 算没校验过，其它错误直接拒绝这次尝试）。
 
 **这里必须用本机解析器，不能换公网上的 DNS。** 订阅的 `route: direct` 抓取同样走这个
 resolver，而且它一旦解析出结果就不再回落到系统解析器（只有失败或空结果才回落）。换成
