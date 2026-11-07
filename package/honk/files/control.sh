@@ -11,6 +11,7 @@ HONK_MAINT_CAP_FILE=$HONK_MAINT_DIR/capability
 . /lib/functions.sh
 . /usr/share/honk/lock.sh
 . /usr/share/honk/lifecycle.sh
+. /usr/share/honk/geodata.sh
 
 fail() {
 	echo "honk: $*" >&2
@@ -452,6 +453,39 @@ cleanup_initialize() {
 	fi
 }
 
+# 迁移：删掉旧版本写进 system.dae 的 assets.geodata 段。
+#
+# 旧版本在 system.dae 里写死了地理数据的下载源：一个 GitHub 地址 +
+# route: direct。这段配置会覆盖核心自己的内置列表（每个文件两个地址，
+# 一个不通就换下一个），于是只剩一个地址可试：不通就是下载超时。
+# route: direct 还绕过了路由规则，出口不由用户决定。
+#
+# 现在配置里不写这一段：核心用内置的列表，路由规则决定出口。旧文件里
+# 的这段只在它确实是我们写的那份时才删 —— 用户自己改过的配置不动。
+migrate_geodata_assets() {
+	[ -f /etc/honk/system.dae ] && [ ! -L /etc/honk/system.dae ] || { echo unchanged; return 0; }
+	# 只删我们自己写的那份：用户自己改过的配置不动。
+	grep -q 'Loyalsoldier' /etc/honk/system.dae || { echo unchanged; return 0; }
+	temp=$(mktemp /etc/honk/.system.dae.migrate.XXXXXX) || return 1
+	honk_geodata_strip /etc/honk/system.dae "$temp" || { rm -f "$temp"; echo unchanged; return 0; }
+	cmp -s /etc/honk/system.dae "$temp" && { rm -f "$temp"; echo unchanged; return 0; }
+	backup=$(mktemp /etc/honk/.system.dae.migrate.bak.XXXXXX) || { rm -f "$temp"; return 1; }
+	cp -p /etc/honk/system.dae "$backup" || { rm -f "$temp" "$backup"; return 1; }
+	chmod 0600 "$temp" || { rm -f "$temp" "$backup"; return 1; }
+	mv -f "$temp" /etc/honk/system.dae || { rm -f "$temp" "$backup"; return 1; }
+	# 换掉之后整个配置必须还是合法的：不行就把原来那份放回去。
+	if ! "$HONK_CORE" config validate --config /etc/honk/config.dae >/dev/null 2>&1; then
+		mv -f "$backup" /etc/honk/system.dae || :
+		rm -f "$backup"
+		logger -t honk "the geodata source migration left an invalid config; restored the old file"
+		echo unchanged
+		return 0
+	fi
+	rm -f "$backup"
+	echo changed
+	return 0
+}
+
 # 交还面板管理时也用它，保证两条路径生成的 system.dae 一致。
 render_runtime_system() {
 	printf "global {\n    wan_interface: auto\n    lan_interface: '%s'\n" "$1"
@@ -459,10 +493,6 @@ render_runtime_system() {
 	printf "    auto_config_kernel_parameter: true\n    data_dir: '/etc/honk'\n"
 	printf "    bootstrap_resolver: '127.0.0.1:53'\n"
 	printf "    store_subscribe: true\n    nfqueue_enable: true\n}\n\n"
-	printf "assets {\n    geodata {\n"
-	printf "        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'\n"
-	printf "        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'\n"
-	printf "        route: direct\n    }\n}\n\n"
 	printf "experimental {\n    native_api {\n        enabled: true\n        listen: '%s:%s'\n" "$2" "$3"
 	printf "        password_auth: true\n        allow_anonymous_loopback: false\n"
 	printf "        config_write: true\n        ui: '/usr/share/doona'\n    }\n"
@@ -1297,6 +1327,9 @@ case "$1" in
 		load_settings
 		sync_local_direct
 		;;
+	migrate)
+		migrate_geodata_assets
+		;;
 	sync-db)
 		sync_db_revisions
 		;;
@@ -1313,7 +1346,7 @@ case "$1" in
 		detach
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|sync-db|repair|detach}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|repair|detach}" >&2
 		exit 2
 		;;
 esac

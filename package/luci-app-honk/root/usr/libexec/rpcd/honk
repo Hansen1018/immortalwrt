@@ -4,6 +4,7 @@
 . /lib/functions.sh
 . /usr/share/honk/lock.sh
 . /usr/share/honk/lifecycle.sh
+. /usr/share/honk/geodata.sh
 . /usr/share/honk/log-lines.sh
 
 CONTROL=/usr/share/honk/control.sh

@@ -24,6 +24,7 @@ CAPABILITY=$TXN_DIR/capability
 if [ "${HONK_MAINT_LIBRARY:-0}" != 1 ]; then
 	. /usr/share/honk/lock.sh || exit 1
 	. /usr/share/honk/lifecycle.sh || exit 1
+	. /usr/share/honk/geodata.sh || exit 1
 	. /usr/share/libubox/jshn.sh || exit 1
 	[ -r /lib/functions.sh ] && . /lib/functions.sh
 fi
@@ -607,16 +608,6 @@ global {
     nfqueue_enable: true
 }
 
-# 地理数据的下载源：与核心配置、LuCI 的 update-geo.sh 共用同一份来源，
-# 面板更新与 LuCI 更新拿到的字节一致，核心就不会重复覆盖，两边不互相干扰。
-assets {
-    geodata {
-        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
-        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
-        route: direct
-    }
-}
-
 experimental {
     native_api {
         enabled: true
@@ -640,7 +631,10 @@ EOF
 	cat >> "$temp_dir/system.expected" <<EOF
 }
 EOF
-	cmp -s "$trusted_system" "$temp_dir/system.expected"
+	# 旧备份里的 system.dae 可能还带着旧版本写死的下载源：去掉那一段再比，
+	# 否则旧备份恢复不了。其它内容一个字节都不动。
+	honk_geodata_strip "$trusted_system" "$temp_dir/system.stripped" || return 1
+	cmp -s "$temp_dir/system.stripped" "$temp_dir/system.expected"
 }
 
 check_tar_members() {
@@ -778,16 +772,6 @@ global {
     nfqueue_enable: false
 }
 
-# 地理数据的下载源：与核心配置、LuCI 的 update-geo.sh 共用同一份来源，
-# 面板更新与 LuCI 更新拿到的字节一致，核心就不会重复覆盖，两边不互相干扰。
-assets {
-    geodata {
-        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
-        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
-        route: direct
-    }
-}
-
 experimental {
     native_api {
         enabled: true
@@ -821,16 +805,6 @@ global {
     bootstrap_resolver: '127.0.0.1:53'
     store_subscribe: true
     nfqueue_enable: true
-}
-
-# 地理数据的下载源：与核心配置、LuCI 的 update-geo.sh 共用同一份来源，
-# 面板更新与 LuCI 更新拿到的字节一致，核心就不会重复覆盖，两边不互相干扰。
-assets {
-    geodata {
-        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
-        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
-        route: direct
-    }
 }
 
 experimental {
