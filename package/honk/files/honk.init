@@ -15,6 +15,28 @@ boot() {
 	start
 }
 
+# cgroup v2：核心的遥测读的是它自己所在 cgroup 的内存文件
+# （memory.current / memory.max / memory.events）。这些文件只有在 memory 控制器
+# 被一路委派到那个 cgroup 时才存在，而 OpenWrt 自己不委派任何控制器，所以面板的
+# cgroup 一栏一直是空的。委派的链条是：根 -> services -> services/honk ->
+# services/honk/main（procd 把每个服务实例放在 services/<服务>/<实例>）。
+# 实例 cgroup 在这里先建好：procd 要等实例起来才建，那时已经来不及委派了。
+# 根 cgroup 不受「有进程就不能开控制器」的限制，所以即使 procd（PID 1）就在根
+# cgroup 里，这一步照样成立。
+honk_cgroup_delegate_memory() {
+	local base=/sys/fs/cgroup
+	[ -f "$base/cgroup.controllers" ] || return 0
+	# 内核没有编译 memory 控制器时没什么可委派的
+	grep -qw memory "$base/cgroup.controllers" 2>/dev/null || return 0
+	mkdir -p "$base/services/honk/main" 2>/dev/null || return 0
+	chmod 0700 "$base/services" "$base/services/honk" "$base/services/honk/main" 2>/dev/null
+	# 从上往下逐级委派：控制器只对子树_control 里打开的那一级以下的子 cgroup 生效
+	echo +memory > "$base/cgroup.subtree_control" 2>/dev/null || return 0
+	echo +memory > "$base/services/cgroup.subtree_control" 2>/dev/null || return 0
+	echo +memory > "$base/services/honk/cgroup.subtree_control" 2>/dev/null || return 0
+	[ -f "$base/services/honk/main/memory.current" ] || logger -t honk "the memory controller is not delegated to the instance cgroup; the panel's cgroup row stays empty"
+}
+
 start_service() {
 	local enabled initialized config_file ready_token ready_hash ready_runtime ready_api_enabled ready_api_listen ready_clash_api_listen ready_clash_api_secret_set old_ready_token
 	config_load honk
@@ -65,6 +87,8 @@ start_service() {
 	fi
 	printf '%s %s\n' "$ready_token" "$ready_hash" > /var/run/honk/readiness || return 1
 	chmod 0600 /var/run/honk/readiness || return 1
+	# 让核心跑在一个带内存文件的 cgroup 里：面板的 cgroup 一栏（已用/上限/OOM）靠这个
+	honk_cgroup_delegate_memory
 	procd_open_instance main
 	# 存储模式：db = 核心托管配置（原生 API 的导入/修订历史可用）；file = 配置文件为准。
 	# 两种模式都需要 native-api 构建特性（--store db 按 honk 文档要求）。

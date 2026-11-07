@@ -378,6 +378,33 @@ resolver，而且它一旦解析出结果就不再回落到系统解析器（只
 LuCI 侧在装进文件系统之前做两道检查：先比对发布的 `.sha256sum`，再让**核心**用候选文件
 编译一遍当前配置 —— 只有核心能判断「文件能不能解析、规则用到的分类齐不齐」。
 
+### 面板的 cgroup 一栏：为什么以前是空的
+
+面板概览里的「cgroup 已用 / cgroup 上限 / cgroup 范围」来自核心的遥测：核心读**自己所在
+那个 cgroup** 的 `memory.current`、`memory.max`、`memory.events`。这三个文件只有在内核把
+`memory` 控制器**委派到那个 cgroup** 时才存在，而 OpenWrt 自己不委派任何控制器（整机
+没有任何地方在启动时写过 `cgroup.subtree_control`；只有 procd 创建容器时才会写）。于是
+核心读不到，读不到就没有 `cgroup` 这个能力项（能力接口里没有 `cgroup.current_bytes`），
+面板就把这一栏藏了起来。
+
+包里补上了这一步（`honk.init` 的 `honk_cgroup_delegate_memory`，服务启动前跑一次）：
+
+- 委派的链条是 `根 -> services -> services/honk -> services/honk/main`。procd 把每个服务
+  实例放在 `/sys/fs/cgroup/services/<服务>/<实例>`，honk 的实例名是 `main`；
+- **实例 cgroup 由包先建好**：procd 要等实例起来才建，那时已经来不及委派了；
+- 控制器只对 `cgroup.subtree_control` 里打开的那一级**以下**的子 cgroup 生效，所以要从
+  根往下逐级写；
+- 根 cgroup 不受「cgroup 里有进程就不能开控制器」的限制（内核文档
+  `Documentation/admin-guide/cgroup-v2.rst`：「The root cgroup is exempt from this
+  restriction」），所以即使 procd（PID 1）就在根 cgroup 里，这一步照样成立 —— 实测在有
+  100 多个进程的根 cgroup 上写 `+memory` 是成功的；
+- 内核没编译 `memory` 控制器、或者根本没挂 cgroup2 时，这一步什么都不做，服务照常起。
+
+委派之后核心的遥测就有数据了：`/api/v1/runtime/memory` 里出现
+`"cgroup":{"current_bytes":…,"scope":"service"}`，能力接口里出现 `cgroup.current_bytes`，
+面板的 cgroup 一栏随之出现。「cgroup 范围」显示「本服务」，是因为实例 cgroup 的
+`cgroup.procs` 里只有核心自己一个 pid。
+
 ### `kernel argv capture unavailable; using thread comm`
 
 核心日志里的这行是**降级提示，不是启动失败**。
