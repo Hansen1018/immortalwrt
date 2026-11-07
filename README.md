@@ -263,40 +263,39 @@ service honk restart
 否则核心直接退出）。状态页会同时显示**配置的**与**实际生效的**存储模式——两者不一致
 时会有告警。
 
-`db` 模式有个副作用：**文件只在第一次启动时被读一次**（导入成修订 1），之后每次启动跑
-的是库里的活动修订，文件再改也不会自动生效（上游原话："File edits reach the database
-only through import with `replace:true`"）。所以包里加了一座桥
-`/usr/share/honk/store-bridge.sh`：服务起来后，如果配置文件的内容变了，它就调
-`POST /api/v1/x-honk/config/import`（`replace:true`）把文件记成新修订。
+**`db` 模式下配置文件不再是配置的来源**：上游的规矩是「有修订在库里时，启动跑的是
+库里的活动修订，不再读 `-c`」，「文件改动只有经过 `import`（`replace:true`）才进库」。
+也就是说 `db` 模式里配置归**面板**管（面板的导入与修订历史就是干这个的），LuCI 写进
+`/etc/honk/config.dae` 的东西不会自己生效；`file` 模式里反过来，配置文件说了算，
+面板的导入与修订历史用不了。两种模式可以随时切换（设置页的「存储模式」），切回
+`file` 的官方做法是先 `honk-core config export --out /etc/honk/config.dae` 把库里的
+内容导成文件。
 
-桥是**按文件哈希触发**的（标记在 `/etc/honk/.file-import-hash`）：文件没变就什么都不做。
-这样面板里改的东西（存在库里）不会因为一次重启就被文件覆盖，而 LuCI 里改的配置在下次
-启动时又会自动进库。
 
-调用 import 需要管理员口令，所以初始化时把口令写进 `/etc/.honk-admin-credential`
-（0600，只有 root 能读）。它只给桥用，面板与 LuCI 都不读它；在 LuCI 的「维护 → 重置
-管理员」时会一并删掉。
+### 升级固件后面板要求「新建管理员」，LuCI 却一切正常
 
-**从旧固件升级上来时**管理员账号是保留的（它存在 `/etc/honk/state/honk.db`，在可写分
-区上，正常 sysupgrade 不动它；存储模式从 file 切到 db 也不影响它）。但升级过来的设
-备没有 `/etc/.honk-admin-credential`（那个文件只由初始化写），桥就还拿不到口令。
-这时在概览页会出现「修订历史桥 → 未授权」的提示，填一次管理员口令点「授权」即可
-（口令先在核心那验证一次，通过后存成 0600 的文件，并立刻把当前配置文件导入成
-一条修订）。概览页的「存储模式」和「修订历史桥」两行就是给这种情况看的。
+面板（Doona）问的是**核心**：`GET /api` 里的 `auth.setup_required` 为真时，它就显示
+「新建管理员」；LuCI 以前只看 UCI 里的 `honk.main.initialized`（升级固件时这个标记
+是保留的），所以两边说法不一致。
 
-**在 LuCI 里一键授权**：「维护」页的「重置管理员」按钮右边就是「授权修订历史桥」。
-它拿**已经保存下来的管理员凭据**（初始化或上一次授权时写的）去核心**查验比对**一次：
-能登录成功就说明这份凭据对得上当前那个管理员，于是桥就能用上，**不需要你再输入口令**。
-（只有「重置管理员」之后、旧凭据已被删掉时才会提示没有凭据。）
+管理员记录在核心的状态库里：`<data_dir>/state/honk.db` 的 `admin` 表。**这个库是
+SQLite 的 WAL 模式**：建管理员时记录先写进 `honk.db-wal`，要等 checkpoint 才进
+`honk.db` 本身。核心退出时不做 checkpoint（实测：SIGTERM 正常退出后 `-wal` 还在，
+记录也就只活在那一份 WAL 里）。于是只要 `-wal` 丢了——固件升级动了状态目录、掉电、
+清理临时文件——管理员记录就没了，而 `/etc/config/honk` 的 `initialized=1` 还在：
+**面板要新建管理员，LuCI 看着一切正常。**
 
-**也可以在命令行授权**（不经过浏览器，适合页面看起来没有输入框的时候）：
+包里的对策：
 
-```sh
-printf '你的管理员口令\n' | /usr/share/honk/control.sh authorize-bridge admin
-```
-
-输出 `{"ok":true,"message":"store_authorized"}` 就是成功（口令错会返回
-`invalid_credentials`）。口令从标准输入读，不进 shell 历史也不进进程列表。
+- **落盘**：`maintenance.sh checkpoint` 做 `PRAGMA wal_checkpoint(TRUNCATE)` 并清掉
+  残留的 `-wal/-shm`。建完管理员（`control.sh initialize`）、停服务（`honk.init` 的
+  `stop_service`）、重置管理员时都会落一次盘，管理员记录从此在 `honk.db` 本身里，
+  `-wal` 丢了也不怕。
+- **说实话**：状态接口多了一个 `admin_setup_required`（直接问核心的 `/api`）。管理员
+  记录没了时，概览页会给出「面板要求新建管理员」的告警**和建账号的表单**，跟面板
+  做同一件事，LuCI 不再装作什么都不知道。
+- **能补救**：`initialize` 允许在 `initialized=1` 时重来（管理员还在的话走的是登录
+  分支，不会覆盖已有账号），LuCI 的表单就是走这条路。
 
 **为什么 LuCI 页面有时看不到新控件**：LuCI 的静态资源缓存键是 LuCI 自己的版本号
 （`luci.js` 的 `?v=`），**不含本包的版本**，所以升级 luci-app-honk 之后浏览器往往

@@ -67,15 +67,6 @@ status() {
 	# 实际生效的存储模式：读运行中核心的命令行。只看 UCI 是不够的，
 	# 配置写的是 db 而启动参数没带上时，两者会分家（面板就会说导入不可用）。
 	store_active=unknown
-	# 桥的状态：db 模式下没有管理员凭据，LuCI 改的配置文件就进不了状态库。
-	store_bridge=not_needed
-	if [ "$store_configured" = db ]; then
-		if [ -f /etc/.honk-admin-credential ] && [ ! -L /etc/.honk-admin-credential ]; then
-			store_bridge=ready
-		else
-			store_bridge=no_credential
-		fi
-	fi
 	if [ -n "$managed_pid" ] && [ -r "/proc/$managed_pid/cmdline" ]; then
 		core_cmdline=$(tr '\000' ' ' < "/proc/$managed_pid/cmdline" 2>/dev/null)
 		case "$core_cmdline" in
@@ -131,6 +122,19 @@ status() {
 	esac
 	api_url="http://$listen"
 	[ "$api_enabled" = 1 ] || api_url=""
+	# 面板（Doona）看的是核心：auth.setup_required 为真时它就要求「新建管理员」。
+	# LuCI 以前只看 UCI 的 initialized 标记，管理员记录丢了它也不知道 ——
+	# 于是升级固件后面板要新建管理员，LuCI 却一切正常。这里把核心的真实状态读出来。
+	admin_setup_required=unknown
+	if [ -n "$api_url" ]; then
+		discovery=$(curl -fsS --noproxy '*' --connect-timeout 1 --max-time 3 "$api_url/api" 2>/dev/null)
+		setup_flag=$(printf '%s' "$discovery" | jsonfilter -e '@.auth.setup_required' 2>/dev/null)
+		case "$setup_flag" in
+			true) admin_setup_required=1 ;;
+			false) admin_setup_required=0 ;;
+			*) admin_setup_required=unknown ;;
+		esac
+	fi
 	clash_api_url=
 	[ -n "$clash_listen_addr" ] && clash_api_url="http://$clash_listen_addr"
 	active_hash=$(sha256sum /etc/honk/config.dae 2>/dev/null | awk '{print $1}')
@@ -177,7 +181,7 @@ status() {
 	json_add_string settings_owner "$settings_owner"
 	json_add_string store_mode "$store_configured"
 	json_add_string store_active "$store_active"
-	json_add_string store_bridge "$store_bridge"
+	json_add_string admin_setup_required "$admin_setup_required"
 	json_add_boolean config_pending "$config_pending"
 	json_add_boolean draft_pending "$draft_pending"
 	json_add_boolean legacy_draft "$legacy_draft"
@@ -889,26 +893,27 @@ restore_prepare() {
 
 # 忘记密码：清掉核心里的管理员记录，并让 LuCI 重新显示首次设置。
 # 只删管理员，不动订阅/分组/路由；需要先停服务（内核自己也会拒绝运行中的 reset）。
-# 授权「修订历史桥」：db 模式下核心把运行配置存在状态库里，LuCI 改的配置文件
-# 只有走 import 才能进库，而 import 需要管理员口令。验证通过后把凭据存成 0600 的
-# 文件（只有桥读它），这样升级保留下来的老管理员不必重置也能用上。
-# 与 control.sh 的 authorize-bridge 同一份实现（那边是命令行入口）。
-# 这里只把浏览器的 JSON 变成「用户名 + 一行口令」，其余交给那个脚本。
-store_authorize_auto() {
-	begin_mutation
-	exec "$CONTROL" authorize-bridge-auto
-}
-
-store_authorize() {
-	begin_mutation
+# 升级固件后状态库里的管理员记录可能没了，面板（Doona）会要求「新建管理员」。
+# LuCI 这边做同一件事：先把服务停掉（初始化要求核心不在运行），做完按原状态拉回来。
+# 这里不取锁：control.sh 的 initialize 自己取（同一把锁，取两次会死锁）。
+initialize_account() {
 	request=$(cat)
-	json_load "$request" 2>/dev/null || { emit_result false invalid_request; return 1; }
-	json_get_var username username
-	json_get_var password password
-	case "$username" in ''|*[!A-Za-z0-9_.-]*) emit_result false invalid_credentials; return 1 ;; esac
-	[ ${#username} -le 64 ] || { emit_result false invalid_credentials; return 1; }
-	[ ${#password} -ge 8 ] && [ ${#password} -le 128 ] || { emit_result false invalid_credentials; return 1; }
-	printf '%s\n' "$password" | "$CONTROL" authorize-bridge "$username"
+	was_running=0
+	honk_lifecycle_managed_pid >/dev/null 2>&1 && was_running=1
+	old_enabled=$(uci -q get honk.main.enabled || echo 0)
+	if [ "$was_running" = 1 ] || [ "$old_enabled" = 1 ]; then
+		set_enabled 0 || { emit_result false settings_write_failed; exit 1; }
+	fi
+	if [ "$was_running" = 1 ]; then
+		honk_lifecycle_stop 30 || { emit_result false service_stop_failed_rolled_back; exit 1; }
+	fi
+	printf '%s' "$request" | "$CONTROL" initialize
+	result=$?
+	if [ "$result" = 0 ] && { [ "$was_running" = 1 ] || [ "$old_enabled" = 1 ]; }; then
+		set_enabled "$old_enabled" || :
+		honk_lifecycle_start 30 || :
+	fi
+	return $result
 }
 
 reset_admin() {
@@ -929,13 +934,13 @@ reset_admin() {
 		emit_result false administrator_reset_failed
 		return 1
 	fi
+	# 删掉的记录同样先落在 WAL 里，落盘一次才不会在下次启动时复活。
+	"$MAINT" checkpoint >/dev/null 2>&1 || :
 	if ! uci set honk.main.initialized=0 || ! uci set honk.main.enabled=0 || ! uci commit honk || ! chmod 0600 /etc/config/honk; then
 		emit_result false config_write_failed
 		return 1
 	fi
 	rm -f "${reset_backup:-}"
-	# 管理员没了，桥用的凭据与标记一并清掉（下次初始化会重建）。
-	rm -f /etc/.honk-admin-credential /etc/honk/.file-import-hash 2>/dev/null || :
 	emit_result true administrator_reset
 }
 
@@ -1195,7 +1200,7 @@ list)
 				if errors=$("$CONTROL" diagnose 2>/dev/null); then emit_errors true ""; else emit_errors false "$errors"; fi
 				;;
 			initialize)
-				exec "$CONTROL" initialize
+				initialize_account
 				;;
 			settings)
 				exec "$CONTROL" settings
@@ -1205,12 +1210,6 @@ list)
 				;;
 			reset_admin)
 				reset_admin
-				;;
-			store_authorize)
-				store_authorize
-				;;
-			store_authorize_auto)
-				store_authorize_auto
 				;;
 			add_subscription)
 				add_subscription

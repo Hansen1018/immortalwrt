@@ -24,51 +24,9 @@ function getNetworkNames(networks) {
 	}).sort();
 }
 
-function bridgeText(status) {
-	if (!status || !status.store_bridge)
-		return '';
-	if (status.store_bridge === 'ready')
-		return _('Authorized');
-	if (status.store_bridge === 'no_credential')
-		return _('Not authorized');
-	return _('Not needed');
-}
 
 /* db 模式下核心把运行配置存在状态库里，LuCI 改的配置文件只有走 import 才进库，
    而 import 要用管理员口令鉴权。这里让用户输一次口令完成授权。 */
-function renderBridgeAuthorize(refresh) {
-	const form = E('form', { 'class': 'honk-card' });
-	const username = E('input', { 'type': 'text', 'name': 'username', 'class': 'cbi-input-text', 'required': true, 'autocomplete': 'username' });
-	const password = E('input', { 'type': 'password', 'name': 'password', 'class': 'cbi-input-text', 'required': true, 'autocomplete': 'current-password' });
-	const message = E('p', { 'class': 'honk-status-msg', 'role': 'status' }, '');
-	const submit = E('button', { 'class': 'cbi-button cbi-button-positive', 'type': 'submit' }, _('Authorize'));
-	form.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Revision history bridge')));
-	form.appendChild(E('p', { 'class': 'honk-note' }, _('The core keeps the running configuration as revisions in its database, so a configuration written in LuCI has to be imported. The import is authenticated with the administrator password, which is then kept in a root-only file for that call.')));
-	form.appendChild(field(_('Username'), username));
-	form.appendChild(field(_('Password'), password));
-	form.appendChild(message);
-	form.addEventListener('submit', function(ev) {
-		ev.preventDefault();
-		const user = username.value.trim();
-		const secret = password.value;
-		if (!user || !secret) {
-			message.textContent = _('Enter both a username and a password.');
-			return;
-		}
-		submit.disabled = true;
-		message.textContent = _('Authorizing\u2026');
-		honk.storeAuthorize(user, secret).then(honk.ensureOk).then(function(result) {
-			password.value = '';
-			message.textContent = honk.resultMessage(result, _('The revision history bridge is authorized.'));
-			refresh();
-		}).catch(function(error) {
-			message.textContent = honk.errorMessage(error, _('The administrator credentials were refused.'));
-		}).finally(function() {
-			submit.disabled = false;
-		});
-	});
-	return form;
-}
 
 function storeModeText(status) {
 	if (!status || !status.store_mode)
@@ -236,7 +194,6 @@ return view.extend({
 					metaItem(_('Doona version'), status.doona_version),
 					metaItem(_('Kernel'), status.kernel),
 					metaItem(_('Store mode'), storeModeText(status)),
-					metaItem(_('Revision history bridge'), bridgeText(status))
 				])
 			]);
 
@@ -259,11 +216,13 @@ return view.extend({
 				statusCard.appendChild(E('p', { 'class': 'alert-message', 'role': 'status' },
 					_('The core runs in file mode: the configuration import and the revision history are not available. Switch the store mode to the database in the settings.')));
 
-			if (status.store_bridge === 'no_credential')
-				statusCard.appendChild(renderBridgeAuthorize(refresh));
 
 			if (!status.initialized)
 				statusCard.appendChild(E('p', { 'class': 'honk-note', 'role': 'status' }, _('Not initialized yet. Finish the first setup below, then Honk can be started.')));
+
+			if (status.admin_setup_required === '1')
+				statusCard.appendChild(E('p', { 'class': 'alert-message', 'role': 'status' },
+					_('The Doona panel asks you to create an administrator: the state database has no administrator record. Create it below to get the panel working again.')));
 
 			statusArea.appendChild(statusCard);
 			statusArea.appendChild(renderServiceSettings(status));
@@ -447,14 +406,19 @@ return view.extend({
 			if (!status)
 				return;
 			const initialized = status.initialized === true;
-			if (setupState === initialized)
+			/* 面板（Doona）问的是核心：状态库里没有管理员记录时它会要求「新建管理员」。
+			   升级固件后管理员记录可能没了，而 UCI 的 initialized 标记还在 ——
+			   两边就会说法不一。这里跟着核心的说法走：管理员没了就把建账号的表单显示出来。 */
+			const adminMissing = status.admin_setup_required === '1';
+			const setupStateKey = adminMissing ? 'admin' : (initialized ? 'done' : 'setup');
+			if (setupState === setupStateKey)
 				return;
-			setupState = initialized;
+			setupState = setupStateKey;
 			const fields = captureFields(setupArea);
 			while (setupArea.firstChild)
 				setupArea.removeChild(setupArea.firstChild);
 
-			if (initialized)
+			if (setupStateKey === 'done')
 				return;
 
 			const form = E('form', { 'class': 'honk-card' });
@@ -462,8 +426,13 @@ return view.extend({
 			const password = E('input', { 'type': 'password', 'name': 'password', 'id': 'honk-init-password', 'autocomplete': 'new-password', 'required': true, 'class': 'cbi-input-password' });
 			const message = E('p', { 'class': 'honk-status-msg', 'role': 'status' }, '');
 			const submit = E('button', { 'class': 'cbi-button cbi-button-positive', 'type': 'submit' }, _('Initialize Honk'));
-			form.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Initial setup')));
-			form.appendChild(E('p', { 'class': 'honk-note' }, _('Create the Honk administrator account. The password is sent only for this request and is not saved by this page.')));
+			if (adminMissing) {
+				form.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Create the administrator')));
+				form.appendChild(E('p', { 'class': 'honk-note' }, _('The Doona panel asks you to create an administrator: the state database has no administrator record (it is lost after a firmware update). Create it here and the panel works again.')));
+			} else {
+				form.appendChild(E('h3', { 'class': 'honk-card-title' }, _('Initial setup')));
+				form.appendChild(E('p', { 'class': 'honk-note' }, _('Create the Honk administrator account. The password is sent only for this request and is not saved by this page.')));
+			}
 			form.appendChild(E('p', { 'class': 'honk-note' }, _('Username: letters, digits, underscore, dot or hyphen (max 64 characters). Password: 8 to 128 characters.')));
 			form.appendChild(field(_('Username'), username));
 			form.appendChild(field(_('Password'), password));

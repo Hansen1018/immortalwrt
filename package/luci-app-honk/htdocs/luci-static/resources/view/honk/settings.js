@@ -94,7 +94,7 @@ return view.extend({
 		section.appendChild(field(_('Clash API port'), clashPortInput));
 		section.appendChild(field(_('Clash API secret'), clashSecretInput));
 			section.appendChild(field(_('Store mode'), storeSelect));
-			section.appendChild(E('p', { 'class': 'honk-note' }, _('The database store keeps the running configuration as revisions, so the Doona panel can import configurations and show the revision history. The file store keeps the configuration in /etc/honk/config.dae only, and the panel then has no import or revision history. The change takes effect after the service restarts.')));
+			section.appendChild(E('p', { 'class': 'honk-note' }, _('The database store keeps the running configuration as revisions, so the Doona panel can import configurations and show the revision history. The file store keeps the configuration in /etc/honk/config.dae only, and the panel then has no import or revision history. In the database store the configuration file is not the source any more: the core runs the revision in the database, so a configuration written in LuCI only takes effect after the panel imports it. The change takes effect after the service restarts.')));
 		section.appendChild(E('p', { 'class': 'honk-note' }, data.status && data.status.clash_api_secret_set ? _('A secret is set. Leave blank to keep it. Use your existing HTTPS reverse proxy for external access.') : _('A secret is required when enabling Clash API. Use 6–128 letters, numbers, dots, underscores or hyphens.')));
 		section.appendChild(E('div', { 'class': 'cbi-page-actions' }, save));
 		section.appendChild(message);

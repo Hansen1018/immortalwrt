@@ -43,6 +43,24 @@ error() {
 	return 1
 }
 
+# 状态库落盘：管理员记录在 SQLite 的 admin 表里，而 WAL 模式下它先写在
+# honk.db-wal 里，要等 checkpoint 才进 honk.db 本身。固件升级或掉电把
+# -wal 弄丢了，管理员记录就没了 —— 面板（Doona）会要求「新建管理员」，
+# 而 LuCI 只看 UCI 的 initialized 标记，两边因此说法不一。
+checkpoint_state() {
+	[ -e "$HONK_STATE" ] || { json_result true "" "state_database_absent"; return 0; }
+	command -v sqlite3 >/dev/null 2>&1 || { error sqlite_missing; return 1; }
+	# 核心还在跑的时候不能删 -wal/-shm（它自己的连接正用着），
+	# 只做一次被动 checkpoint：把 WAL 里的页写回 honk.db。
+	if pidof honk-core >/dev/null 2>&1; then
+		sqlite3 "$HONK_STATE" 'PRAGMA wal_checkpoint(PASSIVE);' >/dev/null 2>&1 || { error sqlite_checkpoint_failed; return 1; }
+		json_result true "" "state_database_checkpointed"
+		return 0
+	fi
+	checkpoint_sqlite || { error sqlite_checkpoint_failed; return 1; }
+	json_result true "" "state_database_checkpointed"
+}
+
 managed_core_pid() {
 	managed_pid=$(ubus call service list '{"name":"honk"}' 2>/dev/null | jsonfilter -e '@.honk.instances.main.pid' 2>/dev/null)
 	case "$managed_pid" in ''|*[!0-9]*) return 1 ;; esac
@@ -1238,6 +1256,7 @@ case "$1" in
 	backup) backup ;;
 	restore) restore ;;
 	reset) reset_data ;;
+	checkpoint) checkpoint_state ;;
 	recover) recover_action ;;
 	*) error invalid_action ;;
 esac

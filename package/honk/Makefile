@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=honk
 PKG_VERSION:=2026.11.06
-PKG_RELEASE:=8
+PKG_RELEASE:=9
 
 # Pinned honk-core revision (upstream daeuniverse/honk main), cross-compiled by
 # ci/build-core.sh. Every release run publishes its core archives under an
@@ -67,7 +67,7 @@ define Package/honk
   # 不直接依赖 libubox：包名带 ABI 日期戳，会锁死固件；脚本只用 jshn 提供的 jshn.sh。
   # 不绑 @KERNEL_DEBUG_INFO_BTF：固件没编 BTF 时还有 vmlinux-btf 包这条活路，
   # 绑上去会让官方 OpenWrt 直接装不了，启动时由控制脚本给出明确报错。
-    DEPENDS:=@(x86_64||aarch64||TARGET_airoha_en7523||TARGET_at91_sama7||TARGET_bcm27xx_bcm2709||TARGET_bcm53xx_generic||TARGET_imx_cortexa7||TARGET_imx_cortexa9||TARGET_ipq40xx_generic||TARGET_ipq40xx_chromium||TARGET_ipq40xx_mikrotik||TARGET_ipq806x_generic||TARGET_ipq806x_chromium||TARGET_layerscape_armv7||TARGET_mediatek_mt7623||TARGET_mediatek_mt7629||TARGET_mvebu_cortexa9||TARGET_mxs_generic||TARGET_omap_generic||TARGET_rockchip_armv7||TARGET_stm32_stm32mp1||TARGET_sunxi_cortexa8||TARGET_sunxi_cortexa7||TARGET_zynq_generic) +ca-bundle +ip-full +ubus +kmod-sched-core +kmod-sched-bpf +kmod-veth +kmod-nft-queue +jsonfilter +jshn +sqlite3-cli +usign +coreutils-stat +v2ray-geoip +v2ray-geosite +@KERNEL_DEBUG_INFO_BTF
+    DEPENDS:=@(x86_64||aarch64||TARGET_airoha_en7523||TARGET_at91_sama7||TARGET_bcm27xx_bcm2709||TARGET_bcm53xx_generic||TARGET_imx_cortexa7||TARGET_imx_cortexa9||TARGET_ipq40xx_generic||TARGET_ipq40xx_chromium||TARGET_ipq40xx_mikrotik||TARGET_ipq806x_generic||TARGET_ipq806x_chromium||TARGET_layerscape_armv7||TARGET_mediatek_mt7623||TARGET_mediatek_mt7629||TARGET_mvebu_cortexa9||TARGET_mxs_generic||TARGET_omap_generic||TARGET_rockchip_armv7||TARGET_stm32_stm32mp1||TARGET_sunxi_cortexa8||TARGET_sunxi_cortexa7||TARGET_zynq_generic) +ca-bundle +ip-full +ubus +kmod-sched-core +kmod-sched-bpf +kmod-veth +kmod-nft-queue +curl +jsonfilter +jshn +sqlite3-cli +usign +coreutils-stat +v2ray-geoip +v2ray-geosite +@KERNEL_DEBUG_INFO_BTF
 endef
 
 define Package/honk/description
@@ -120,7 +120,6 @@ define Package/honk/install
 		$(INSTALL_DATA) $(CURDIR)/generated-provenance.json $(1)/usr/share/honk/provenance.json; \
 	fi
 	$(INSTALL_BIN) $(CURDIR)/files/control.sh $(1)/usr/share/honk/control.sh
-	$(INSTALL_BIN) $(CURDIR)/files/store-bridge.sh $(1)/usr/share/honk/store-bridge.sh
 	$(INSTALL_BIN) $(CURDIR)/files/lock.sh $(1)/usr/share/honk/lock.sh
 	$(INSTALL_BIN) $(CURDIR)/files/lifecycle.sh $(1)/usr/share/honk/lifecycle.sh
 	$(INSTALL_BIN) $(CURDIR)/files/maintenance.sh $(1)/usr/share/honk/maintenance.sh

@@ -1095,7 +1095,11 @@ post_credentials() {
 
 initialize_preflight() {
 	load_settings
-	[ "$enabled" = 0 ] && [ "$initialized" = 0 ] || { echo '{"ok":false,"message":"disable_service_before_initialization"}'; return 1; }
+	# 服务必须停着（初始化要建账号、要写配置）。
+	# initialized=1 也放行：升级固件后状态库里的管理员记录可能没了，
+	# 面板会要求「新建管理员」，LuCI 这边要能做同一件事；
+	# 管理员还在的话 initialize 走的是登录分支，不会覆盖已有账号。
+	[ "$enabled" = 0 ] || { echo '{"ok":false,"message":"disable_service_before_initialization"}'; return 1; }
 	[ "$config_file" = /etc/honk/config.dae ] || { echo '{"ok":false,"message":"invalid_config_path"}'; return 1; }
 	[ -r /usr/share/doona/index.html ] || { echo '{"ok":false,"message":"ui_assets_missing"}'; return 1; }
 	if [ "$1" = read_credentials ]; then
@@ -1186,6 +1190,10 @@ EOF
 	status=$(post_credentials "$loopback_url/api/v1/auth/login" "$response_file")
 	[ "$status" = 200 ] || { echo '{"ok":false,"message":"persistence_login_failed"}'; return 1; }
 	mock_stop || { echo '{"ok":false,"message":"mock_core_stop_failed"}'; return 1; }
+	# 管理员记录要先落进 honk.db 本身：SQLite 的 WAL 模式下它先写在
+	# honk.db-wal 里，固件升级把 -wal 弄丢了，管理员记录就没了
+	# （面板会要求新建管理员，而 LuCI 看着一切正常）。
+	/usr/share/honk/maintenance.sh checkpoint >/dev/null 2>&1 || :
 
 	write_runtime_system "$lan_device" "$lan_ip" || { restore_system; echo '{"ok":false,"message":"system_config_write_failed"}'; return 1; }
 	lan_url="http://$lan_ip:$listen_port"
@@ -1212,77 +1220,13 @@ EOF
 		echo '{"ok":false,"message":"uci_commit_failed_restored_loopback"}'
 		return 1
 	}
-	# db 模式的桥需要管理员口令来调用 import API：配置文件只有走 import 才进状态库，
-	# 否则核心只跑库里那份修订，LuCI 里改的配置不会生效。口令只写在这个 0600 文件里，
-	# 给 store-bridge.sh 用，面板与 LuCI 都不读它；重置管理员时会一并删掉。
-	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
-		chmod 0600 /etc/.honk-admin-credential || rm -f /etc/.honk-admin-credential 2>/dev/null
-	# 标记：当前文件的内容已经进过状态库（首次启动时核心自己导入的），
-	# 这样桥不会马上再导入一次。文件改动后哈希变了，桥才会导入。
-	sha256sum /etc/honk/config.dae 2>/dev/null | awk '{print $1}' > /etc/honk/.file-import-hash 2>/dev/null || :
 	system_written_hash=""
 	password=""
 	username=""
 	echo '{"ok":true,"message":"administrator_initialized"}'
 }
 
-# 授权「修订历史桥」：db 模式下 LuCI 改的配置文件只有走 import 才能进状态库，
-# 而 import 要用管理员口令鉴权。这里验证口令后把它存成 0600 的文件，桥就有办法调用了。
-# 升级保留下来的管理员不用重置也能用；口令只写在这个文件里，只有桥读它。
-#
-# 用法：control.sh authorize-bridge <用户名>，口令从标准输入读一行（不经过 shell 历史与 ps）。
-# 这里刻意不用 jshn/jsonfilter：命令行走的是路由器上最朴素的路径，坏了也能手工救。
-authorize_bridge() {
-	username="$1"
-	case "$username" in ''|*[!A-Za-z0-9_.-]*) echo '{"ok":false,"message":"invalid_credentials"}'; return 1 ;; esac
-	[ ${#username} -le 64 ] || { echo '{"ok":false,"message":"invalid_credentials"}'; return 1; }
-	password=$(head -n 1 2>/dev/null)
-	[ ${#password} -ge 8 ] && [ ${#password} -le 128 ] || { echo '{"ok":false,"message":"invalid_credentials"}'; return 1; }
-	runtime=$("$HONK_CORE" config validate --config /etc/honk/config.dae 2>/dev/null)
-	listen=$(printf '%s' "$runtime" | sed -n 's/.*"native_api_listen":"\([^"]*\)".*/\1/p')
-	case "$listen" in ''|*[!A-Za-z0-9:._-]*) echo '{"ok":false,"message":"native_api_setup_state_unavailable"}'; return 1 ;; esac
-	# the JSON body: escape the backslash and the quote, drop the newline
-	esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n'; }
-	body=$(printf '{"username":"%s","password":"%s"}' "$(esc "$username")" "$(esc "$password")")
-	# the body travels as an argument: the standard input already carried the password.
-	code=$(curl -sS --noproxy '*' --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' \
-		-X POST "http://$listen/api/v1/auth/login" -H 'Content-Type: application/json' --data-binary "$body" 2>/dev/null)
-	case "$code" in
-		200) : ;;
-		*) echo '{"ok":false,"message":"invalid_credentials"}'; return 1 ;;
-	esac
-	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
-		chmod 0600 /etc/.honk-admin-credential || { rm -f /etc/.honk-admin-credential 2>/dev/null; echo '{"ok":false,"message":"config_write_failed"}'; return 1; }
-	# 立刻把当前配置文件导入状态库，保证库里就是文件里的那一份。
-	/usr/share/honk/store-bridge.sh import "$listen" /etc/honk/config.dae >/dev/null 2>&1 || :
-	echo '{"ok":true,"message":"store_authorized"}'
-}
 
-# 自动授权「修订历史桥」：用已经保存下来的管理员凭据去核心验证一次，不需要用户输入。
-# 凭据是初始化（或上一次授权）时写下的；能登录成功就说明它对得上当前那个管理员，
-# 于是桥就能用这份凭据把 LuCI 改的配置文件导入状态库。
-authorize_bridge_auto() {
-	[ -f /etc/.honk-admin-credential ] && [ ! -L /etc/.honk-admin-credential ] || { echo '{"ok":false,"message":"store_credential_missing"}'; return 1; }
-	username=$(sed -n '1p' /etc/.honk-admin-credential 2>/dev/null)
-	password=$(sed -n '2p' /etc/.honk-admin-credential 2>/dev/null)
-	[ -n "$username" ] && [ -n "$password" ] || { echo '{"ok":false,"message":"store_credential_missing"}'; return 1; }
-	runtime=$("$HONK_CORE" config validate --config /etc/honk/config.dae 2>/dev/null)
-	listen=$(printf '%s' "$runtime" | sed -n 's/.*"native_api_listen":"\([^"]*\)".*/\1/p')
-	case "$listen" in ''|*[!A-Za-z0-9:._-]*) echo '{"ok":false,"message":"native_api_setup_state_unavailable"}'; return 1 ;; esac
-	esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n'; }
-	body=$(printf '{"username":"%s","password":"%s"}' "$(esc "$username")" "$(esc "$password")")
-	code=$(curl -sS --noproxy '*' --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' \
-		-X POST "http://$listen/api/v1/auth/login" -H 'Content-Type: application/json' --data-binary "$body" 2>/dev/null)
-	case "$code" in
-		200) : ;;
-		*) echo '{"ok":false,"message":"invalid_credentials"}'; return 1 ;;
-	esac
-	# 凭据有效：刷新文件，并把当前配置文件导入状态库。
-	printf '%s\n%s\n' "$username" "$password" > /etc/.honk-admin-credential 2>/dev/null &&
-		chmod 0600 /etc/.honk-admin-credential || { rm -f /etc/.honk-admin-credential 2>/dev/null; echo '{"ok":false,"message":"config_write_failed"}'; return 1; }
-	/usr/share/honk/store-bridge.sh import "$listen" /etc/honk/config.dae >/dev/null 2>&1 || :
-	echo '{"ok":true,"message":"store_authorized"}'
-}
 
 case "$1" in
 	check)
@@ -1304,12 +1248,6 @@ case "$1" in
 	settings)
 		settings
 		;;
-	authorize-bridge)
-		authorize_bridge "$2"
-		;;
-	authorize-bridge-auto)
-		authorize_bridge_auto
-		;;
 	repair)
 		repair
 		;;
@@ -1317,7 +1255,7 @@ case "$1" in
 		detach
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|authorize-bridge|authorize-bridge-auto|repair|detach}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|repair|detach}" >&2
 		exit 2
 		;;
 esac

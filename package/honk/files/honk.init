@@ -87,14 +87,13 @@ start_service() {
 	procd_set_param stderr 1
 	procd_set_param respawn 3600 5 5
 	procd_set_param term_timeout 20
-	# db 模式：配置文件只有通过 import 才进状态库，核心跑的是库里那份修订。
-	# 服务起来后补一次导入：文件没变就什么都不做，面板里的改动不会被覆盖。
-	if [ "$store_mode" = db ] && [ -n "$ready_api_listen" ]; then
-		(
-			/usr/share/honk/store-bridge.sh import "$ready_api_listen" "$HONK_CONFIG"
-		) </dev/null >/dev/null 2>&1 &
-	fi
 	procd_close_instance
+}
+
+# 停服务时把状态库落盘：管理员记录写在 SQLite 的 WAL 里，落进 honk.db 本身
+# 之后，掉电或固件升级把 -wal 弄丢了它才还在（面板也就不会要求新建管理员）。
+stop_service() {
+	/usr/share/honk/maintenance.sh checkpoint >/dev/null 2>&1 || :
 }
 
 reload_service() {

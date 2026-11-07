@@ -74,8 +74,6 @@ const callBackup = rpc.declare({ object: 'honk', method: 'backup', expect: { '':
 const callRestore = rpc.declare({ object: 'honk', method: 'restore', expect: { '': {} } });
 const callRestorePrepare = rpc.declare({ object: 'honk', method: 'restore_prepare', expect: { '': {} } });
 const callResetAdmin = rpc.declare({ object: 'honk', method: 'reset_admin', expect: { '': {} } });
-const callStoreAuthorize = rpc.declare({ object: 'honk', method: 'store_authorize', params: [ 'username', 'password' ], expect: { '': {} } });
-const callStoreAuthorizeAuto = rpc.declare({ object: 'honk', method: 'store_authorize_auto', expect: { '': {} } });
 const callReset = rpc.declare({ object: 'honk', method: 'reset', expect: { '': {} } });
 const callJobStatus = rpc.declare({
 	object: 'honk',
@@ -491,8 +489,6 @@ return baseclass.extend({
 	restore: callRestore,
 	restorePrepare: callRestorePrepare,
 	resetAdmin: callResetAdmin,
-	storeAuthorize: callStoreAuthorize,
-	storeAuthorizeAuto: callStoreAuthorizeAuto,
 	reset: callReset,
 	logs: callLogs,
 	updateCheck: callUpdateCheck,
