@@ -361,6 +361,46 @@ argv 访问不可得时，cgroup 钩子改用调用线程的 `comm`」。
 `task_struct.mm` 与 `mm_struct.arg_start` 都能解析出来，honk 的 `process_name::detect`
 拿得到偏移量。
 
+## Vantage：LuCI 主题与仪表盘
+
+固件里集成了 [Vantage](https://github.com/anothaDev/luci-theme-vantage)（作者 anothaDev，
+GPL-3.0-or-later）：一套 LuCI 主题（图标栏、面包屑、Ctrl+K 搜索、明暗主题、手机端底栏）
+和一个只读的实时仪表盘（上线状态、CPU/内存/无线/客户端、实时流量、防火墙概览）。
+
+两个包**原样**放在 `package/` 里（上游 v1.0.16，commit `805beae0`，文件与上游逐字节
+一致）：
+
+| 包 | 作用 |
+|---|---|
+| `package/luci-theme-vantage` | 主题本身（`/www/luci-static/vantage`） |
+| `package/luci-app-vantage` | 仪表盘（登录后的首页 `admin/dashboard`） |
+
+用「放进树里」而不是加 feed：`feeds.conf` 与 `.config` 都不进 git，feed 的写法在这个
+分支里留不下来；放进 `package/` 才能随分支一起走，编译时也不必再联网取一次。
+
+**默认就是它。** 主题包自带 `/etc/uci-defaults/30_luci-theme-vantage`：首次启动时把
+`luci.themes.Vantage` 注册进 LuCI，并在它是新条目时把 `luci.main.mediaurlbase` 指到
+`/luci-static/vantage`。`/etc/uci-defaults/` 按文件名排序执行，`30_luci-theme-bootstrap`
+排在 `30_luci-theme-vantage` 前面（先把自己设成 bootstrap），主题包的脚本随后无条件
+改写 ⇒ **最后落在 Vantage 上**。升级固件后这脚本同样跑一次，所以老设备刷完新固件直接
+就是新主题；也可以在「系统 → 语言和风格 → 主题」里手动切。
+
+简体中文翻译一起编进来：`luci-i18n-vantage-theme-zh-cn`（主题）与
+`luci-i18n-vantage-zh-cn`（仪表盘）。
+
+**更新到上游新版本**（以 v1.0.17 为例）：
+
+```sh
+git clone --depth 1 --branch v1.0.17 https://github.com/anothaDev/luci-theme-vantage.git /tmp/vantage
+rm -rf package/luci-theme-vantage package/luci-app-vantage
+cp -a /tmp/vantage/luci-theme-vantage /tmp/vantage/luci-app-vantage package/
+chown -R openwrt:openwrt package/luci-theme-vantage package/luci-app-vantage
+```
+
+**不想要它**：把 `.config` 里的 `CONFIG_PACKAGE_luci-theme-vantage` 与
+`CONFIG_PACKAGE_luci-app-vantage` 去掉（`make defconfig` 后再编译）即可；主题包的
+`postrm` 会把 LuCI 切回别的已注册主题，不会留下一指向不存在主题的配置。
+
 ## License
 ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html).
 
