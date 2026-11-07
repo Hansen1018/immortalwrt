@@ -16,8 +16,8 @@ global {
 # 每个文件有两个地址，一个不通就换下一个；配置文件里写死一个地址就没有
 # 这个退路了，所以这里不写 URL。
 #
-# route: direct —— 下载不走代理组（没配订阅时代理组是空的）；直连下载需要
-# global.bootstrap_resolver 才能解析域名（没有系统 DNS 回退）。
+# 下载走哪条路由由路由规则决定，和上游一样：assets 里不写 geodata 段，核心
+# 按路由规则选出口（配置里写 route: direct 才是强制直连）。
 #
 # bootstrap_resolver 用路由器自己的解析器（dnsmasq），不要用公网上的 DNS：
 # 订阅的 route: direct 抓取也走它，而且它的答案一旦解析出来就不再回落到系统
@@ -25,11 +25,6 @@ global {
 # 被污染或劫持的域名会解析到错的地址，订阅就再也拉不到数据 —— 实测：
 # 配了假 resolver 后订阅 status 变成 stale、节点为 0，而去掉它就正常。
 # 本机的解析器永远可达，答案与系统解析器一致，等于升级前的行为。
-assets {
-    geodata {
-        route: direct
-    }
-}
 
 experimental {
     native_api {
