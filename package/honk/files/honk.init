@@ -77,7 +77,14 @@ start_service() {
 	esac
 	# One env call, no empty values: procd drops the whole list when a KEY has an
 	# empty value, which silently stripped the readiness hash the core requires.
-	ready_env="DAE_LOCATION_ASSET=/usr/share/v2ray"
+	# 地理数据放在数据目录里：软件包里的那份在只读分区（squashfs）里，
+	# 核心更新时要原地替换它，写不进去 —— 面板的「立即更新」就是这么失败的。
+	# 数据目录可写又是持久的，核心把新文件写在这里，之后原地替换。
+	# 数据目录里没有（复制失败，空间不够）就退回软件包的那份：核心照样能起，
+	# 只是更新替换不了。
+	asset_dir=$honk_data_dir
+	[ -f "$honk_data_dir/geosite.dat" ] && [ -f "$honk_data_dir/geoip.dat" ] || asset_dir=/usr/share/v2ray
+	ready_env="DAE_LOCATION_ASSET=$asset_dir"
 	ready_env="$ready_env HONK_READY_TOKEN=$ready_token HONK_READY_CONFIG_HASH=$ready_hash HONK_READY_API_ENABLED=$ready_api_enabled HONK_READY_CLASH_API_SECRET_SET=$ready_clash_api_secret_set"
 	[ -n "$ready_api_listen" ] && ready_env="$ready_env HONK_READY_API_LISTEN=$ready_api_listen"
 	[ -n "$ready_clash_api_listen" ] && ready_env="$ready_env HONK_READY_CLASH_API_LISTEN=$ready_clash_api_listen"

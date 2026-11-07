@@ -288,6 +288,43 @@ lock_owner_invalid() {
 	return 1
 }
 
+# 配置文件树的内容指纹：改了没有。
+config_tree_hash() {
+	{
+		for file in /etc/honk/config.dae /etc/honk/system.dae; do
+			[ -f "$file" ] && [ ! -L "$file" ] && sha256sum "$file" 2>/dev/null
+		done
+	} | sha256sum 2>/dev/null | awk '{print $1}'
+}
+
+# db 模式下核心跑的是状态库里的修订，配置文件改了不会生效（上游原话：
+# "File edits reach the database only through import"）。上游的规矩是
+# 「库里没有修订时，启动会导入 -c」—— 清掉修订（管理员记录、订阅记录都留着），
+# 核心下次启动就把当前配置文件导入成修订 1，文件重新说了算。
+# 面板自己在库里改的东西不受影响：文件没变就不清。
+sync_db_revisions() {
+	load_settings
+	config_get store_mode main store db
+	[ "$store_mode" = db ] || { echo '{"ok":true,"message":"store_mode_not_db"}'; return 0; }
+	current=$(config_tree_hash)
+	stored=$(cat /etc/honk/.file-hash 2>/dev/null || echo '')
+	[ -n "$current" ] && printf '%s' "$current" > /etc/honk/.file-hash 2>/dev/null || :
+	if [ -z "$current" ] || [ "$current" = "$stored" ]; then
+		echo '{"ok":true,"message":"configuration_unchanged"}'
+		return 0
+	fi
+	[ -f /etc/honk/state/honk.db ] && [ ! -L /etc/honk/state/honk.db ] || {
+		echo '{"ok":true,"message":"state_database_absent"}'
+		return 0
+	}
+	command -v sqlite3 >/dev/null 2>&1 || { echo '{"ok":false,"message":"sqlite_missing"}'; return 1; }
+	if ! sqlite3 /etc/honk/state/honk.db "PRAGMA foreign_keys=ON; DELETE FROM head; DELETE FROM revision; DELETE FROM sqlite_sequence WHERE name='revision';" >/dev/null 2>&1; then
+		echo '{"ok":false,"message":"revisions_not_cleared"}'
+		return 1
+	fi
+	echo '{"ok":true,"message":"revisions_cleared"}'
+}
+
 preflight() {
 	load_settings
 	[ "$enabled" = 1 ] && [ "$initialized" = 1 ] || { fail "请先在 LuCI 里启用并完成初始化"; return 1; }
@@ -308,6 +345,24 @@ prepare_runtime() {
 	done
 	mkdir -p /etc/honk/state || { fail "无法创建状态目录（/etc/honk/state），请检查磁盘空间与权限"; return 1; }
 	chmod 0700 /etc/honk/state || return 1
+	geodata_files
+}
+
+# 地理数据放在数据目录里。软件包（v2ray-geodata）把文件装在只读分区里，
+# 核心更新时要原地替换加载着的那份 —— 写不进去，面板的「立即更新」就停在
+# 替换阶段。数据目录可写又是持久的，所以第一次启动时把软件包的那份复制过来。
+# 必须是真实文件：核心拒绝在符号链接旁边落盘（实测报的是替换失败）。
+# 复制不了（空间不够）就留着软件包的那份：核心照样能起，只是更新替换不了。
+geodata_files() {
+	for name in geosite geoip; do
+		[ -f "/etc/honk/$name.dat" ] && continue
+		src="/usr/share/v2ray/$name.dat"
+		[ -f "$src" ] || continue
+		cp "$src" "/etc/honk/.$name.dat.new" 2>/dev/null || continue
+		chmod 0644 "/etc/honk/.$name.dat.new" 2>/dev/null || :
+		mv -f "/etc/honk/.$name.dat.new" "/etc/honk/$name.dat" 2>/dev/null || rm -f "/etc/honk/.$name.dat.new" 2>/dev/null
+	done
+	return 0
 }
 
 valid_username() {
@@ -1042,7 +1097,7 @@ mock_start() {
 	# 两边不一致的话 mock 建好的账号真实核心看不到（登录永远提示先初始化）。
 	mock_data_dir=$(sed -n "s/^[[:space:]]*data_dir:[[:space:]]*'\([^']*\)'.*/\1/p" "$mock_config" 2>/dev/null | head -1)
 	[ -n "$mock_data_dir" ] || mock_data_dir=/etc/honk
-	DAE_LOCATION_ASSET=/usr/share/v2ray "$HONK_CORE" --config "$mock_config" --data-dir "$mock_data_dir" --mock-ebpf > "$mock_log" 2>&1 &
+	DAE_LOCATION_ASSET=/etc/honk "$HONK_CORE" --config "$mock_config" --data-dir "$mock_data_dir" --mock-ebpf > "$mock_log" 2>&1 &
 	mock_pid=$!
 	mock_identity=""
 	attempt=0
@@ -1242,6 +1297,9 @@ case "$1" in
 		load_settings
 		sync_local_direct
 		;;
+	sync-db)
+		sync_db_revisions
+		;;
 	initialize)
 		initialize
 		;;
@@ -1255,7 +1313,7 @@ case "$1" in
 		detach
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|repair|detach}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|initialize|settings|sync-db|repair|detach}" >&2
 		exit 2
 		;;
 esac

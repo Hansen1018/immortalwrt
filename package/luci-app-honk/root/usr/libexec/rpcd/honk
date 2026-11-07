@@ -473,7 +473,7 @@ experimental {
     }
 }
 EOF
-	DAE_LOCATION_ASSET=/usr/share/v2ray "$CORE" --config "$temp/config.dae" --mock-ebpf \
+	DAE_LOCATION_ASSET=/etc/honk "$CORE" --config "$temp/config.dae" --mock-ebpf \
 		--data-dir "$temp" --log-file "$temp/core.log" > "$temp/core.console" 2>&1 &
 	core_pid=$!
 	ready=0
@@ -1158,6 +1158,9 @@ config_apply() {
 	else
 		apply_failed=0
 	fi
+	# db 模式：核心跑的是状态库里的修订，文件改了要重新导入才生效。
+	# 服务此刻是停着的（上面刚停过），清修订是安全的。
+	[ "$apply_failed" = 0 ] && "$CONTROL" sync-db >/dev/null 2>&1 || :
 	if [ "$apply_failed" = 0 ] && honk_lifecycle_start 20; then
 		rm -rf "$backup_dir"
 		emit_result true config_applied

@@ -18,15 +18,18 @@ const GEO_CRON = '/usr/share/luci-app-honk/geo-cron.sh';
 const PKGS = [ 'honk', 'luci-app-honk' ];
 const PKG_NAMES = { honk: 'Honk', 'luci-app-honk': 'luci-app-honk' };
 
+// The geodata lives in the data directory: the package's copies are in the
+// read-only partition and the core replaces the loaded file in place.
 const DATA_PATHS = {
-	geoip: '/usr/share/v2ray/geoip.dat',
-	geosite: '/usr/share/v2ray/geosite.dat'
+	geoip: '/etc/honk/geoip.dat',
+	geosite: '/etc/honk/geosite.dat'
 };
 
-// Geo data source presets. `loyalsoldier` keeps both URLs empty so the actual
-// default lives in one place — update-geo.sh — avoiding UI/script drift.
+// Geo data source presets. `default` keeps both URLs empty, so the sources are
+// the core's own built-in list (MetaCubeX, raw first and jsDelivr where
+// GitHub is slow) — one list for the core, update-geo.sh and this page.
 const GEO_PRESETS = {
-	loyalsoldier: { geoip: '', geosite: '' },
+	default: { geoip: '', geosite: '' },
 	v2fly: {
 		geoip: 'https://github.com/v2fly/geoip/releases/latest/download/geoip.dat',
 		geosite: 'https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat'
@@ -186,11 +189,11 @@ return view.extend({
 			const gs0 = uci.get('honk', 'main', 'geosite_url') || '';
 			const auto0 = uci.get('honk', 'main', 'geo_auto') === '1';
 			const freq0 = uci.get('honk', 'main', 'geo_auto_freq') || 'daily';
-			const preset0 = (!gi0 && !gs0) ? 'loyalsoldier' :
+			const preset0 = (!gi0 && !gs0) ? 'default' :
 				(gi0 === GEO_PRESETS.v2fly.geoip && gs0 === GEO_PRESETS.v2fly.geosite) ? 'v2fly' : 'custom';
 
 			const presetSel = E('select', { 'class': 'cbi-input-select', 'id': 'honk-geo-preset' }, [
-				E('option', { 'value': 'loyalsoldier' }, 'Loyalsoldier'),
+				E('option', { 'value': 'default' }, 'Default (MetaCubeX)'),
 				E('option', { 'value': 'v2fly' }, 'v2fly'),
 				E('option', { 'value': 'custom' }, _('Custom'))
 			]);

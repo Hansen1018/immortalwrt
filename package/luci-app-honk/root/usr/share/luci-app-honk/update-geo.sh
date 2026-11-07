@@ -51,6 +51,7 @@ validate_with_core() {
 	cp "$cand" "$tmpdir/$type.dat" 2>/dev/null || { rm -rf "$tmpdir"; return 1; }
 	other=geoip
 	[ "$type" = geoip ] && other=geosite
+	[ -f "/etc/honk/$other.dat" ] && cp "/etc/honk/$other.dat" "$tmpdir/" 2>/dev/null
 	[ -f "/usr/share/v2ray/$other.dat" ] && cp "/usr/share/v2ray/$other.dat" "$tmpdir/" 2>/dev/null
 	DAE_LOCATION_ASSET="$tmpdir" /usr/bin/honk-core config validate --config /etc/honk/config.dae >/dev/null 2>&1
 	rc=$?
@@ -58,19 +59,25 @@ validate_with_core() {
 	return $rc
 }
 
-# Default source: Loyalsoldier/v2ray-rules-dat — daily-built, China-optimized,
-# ships both geoip.dat and geosite.dat. Users can override per-type via
-# honk.main.geoip_url / geosite_url (empty falls back to the default below).
+# The destination is the data directory: the package's copies live in the
+# read-only partition, and the core replaces the loaded file in place (a
+# read-only path fails the replacement, which is what the panel reported).
+#
+# The sources are the core's own built-in list (MetaCubeX/meta-rules-dat,
+# raw.githubusercontent first, jsDelivr where GitHub is slow), so this path
+# and the panel's own update fetch the same bytes and do not fight.
 case "$TYPE" in
 	geoip)
-		DEF_URL="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat"
+		DEF_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat"
+		ALT_URL="https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
 		URL="$(geodata_url geoip)"
-		DEST="/usr/share/v2ray/geoip.dat"
+		DEST="/etc/honk/geoip.dat"
 		;;
 	geosite)
-		DEF_URL="https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat"
+		DEF_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat"
+		ALT_URL="https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
 		URL="$(geodata_url geosite)"
-		DEST="/usr/share/v2ray/geosite.dat"
+		DEST="/etc/honk/geosite.dat"
 		;;
 	*)
 		echo "usage: $0 <geoip|geosite>" >&2
@@ -78,6 +85,13 @@ case "$TYPE" in
 		;;
 esac
 [ -n "$URL" ] || URL="$DEF_URL"
+# The configured source first, then the core's own fallback mirror.
+if [ "$URL" = "$DEF_URL" ]; then
+	URL="$DEF_URL"
+	FALLBACK="$ALT_URL"
+else
+	FALLBACK=""
+fi
 
 LOCK="/tmp/luci-app-honk.${TYPE}.lock"
 LOG="/tmp/luci-app-honk.${TYPE}.log"
@@ -122,6 +136,17 @@ fi
 	echo "$(date '+%F %T') begin: $URL"
 
 	if ! curl -fsSL --proto '=http,https' --proto-redir '=http,https' --connect-timeout 15 --max-time 240 -o "$TMP" "$URL"; then
+		rm -f "$TMP"
+		# The core's own list has a second address (jsDelivr where GitHub is slow);
+		# use it too, so both paths fetch the same bytes from the same place.
+		if [ -n "$FALLBACK" ]; then
+			echo "$(date '+%F %T') $URL failed, trying $FALLBACK"
+			URL="$FALLBACK"
+			FALLBACK=""
+			curl -fsSL --proto '=http,https' --proto-redir '=http,https' --connect-timeout 15 --max-time 240 -o "$TMP" "$URL" || rm -f "$TMP"
+		fi
+	fi
+	if [ ! -s "$TMP" ]; then
 		echo "$(date '+%F %T') download failed"
 		rm -f "$TMP"
 		rc=1

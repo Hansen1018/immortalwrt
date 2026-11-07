@@ -11,8 +11,11 @@ global {
     nfqueue_enable: true
 }
 
-# 地理数据的下载源：面板（核心自带 API）与 LuCI 的 update-geo.sh 共用这一份，
-# 两条路径拿到的字节相同，核心就不会重复覆盖，两边也不会互相干扰。
+# 地理数据的下载源交给核心自己的内置列表：MetaCubeX 的 meta-rules-dat，
+# raw.githubusercontent 在前、jsDelivr 在后（GitHub 慢的时候走 CDN）。内置列表
+# 每个文件有两个地址，一个不通就换下一个；配置文件里写死一个地址就没有
+# 这个退路了，所以这里不写 URL。
+#
 # route: direct —— 下载不走代理组（没配订阅时代理组是空的）；直连下载需要
 # global.bootstrap_resolver 才能解析域名（没有系统 DNS 回退）。
 #
@@ -24,8 +27,6 @@ global {
 # 本机的解析器永远可达，答案与系统解析器一致，等于升级前的行为。
 assets {
     geodata {
-        geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
-        geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'
         route: direct
     }
 }

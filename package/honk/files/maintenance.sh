@@ -915,7 +915,7 @@ validate_candidate() {
 	# 否则 mock 核心会因 --data-dir 与配置不符而拒绝启动。
 	mock_data_dir=$(sed -n "s/^[[:space:]]*data_dir:[[:space:]]*'\([^']*\)'.*/\1/p" "$mock_config" 2>/dev/null | head -1)
 	[ -n "$mock_data_dir" ] || mock_data_dir="${shadow_data:-/etc/honk}"
-	DAE_LOCATION_ASSET=/usr/share/v2ray "$HONK_CORE" --config "$mock_config" --data-dir "$mock_data_dir" --mock-ebpf > "$mock_log" 2>&1 &
+	DAE_LOCATION_ASSET=/etc/honk "$HONK_CORE" --config "$mock_config" --data-dir "$mock_data_dir" --mock-ebpf > "$mock_log" 2>&1 &
 	mock_pid=$!
 	mock_ready=0
 	attempt=0
