@@ -30,6 +30,9 @@ msgstr "发现兼容更新，但尚无完整且已验证的回滚软件包组。
 msgid "A compatible update is available."
 msgstr "发现兼容更新。"
 
+msgid "A file under /etc/honk has a name the backup cannot carry (spaces, wildcards or \"../\"). The service log names it; rename it and try again."
+msgstr "/etc/honk 下有文件名无法写入备份（含空格、通配符或 ../）。文件名已记入日志，改名后重试。"
+
 msgid "A previous operation did not finish cleanly."
 msgstr "上一次操作未能正常结束。"
 
@@ -558,8 +561,6 @@ msgstr "核心当前运行在文件模式：配置导入与修订历史不可用
 msgid "The core keeps the running configuration as revisions in its database, so a configuration written in LuCI has to be imported. The import is authenticated with the administrator password, which is then kept in a root-only file for that call."
 msgstr "核心把运行配置以修订的形式存在状态库里，所以 LuCI 里写的配置需要导入才生效。导入要用管理员口令鉴权，验证通过后口令只保存在一个仅 root 可读的文件里，供这一次调用使用。"
 
-msgid "Authorizing\u2026"
-msgstr "正在授权\u2026"
 
 msgid "The store mode in the configuration (%s) is not the one the core runs with (%s). The configuration import and the revision history need the database store."
 msgstr "配置里的存储模式（%s）与核心实际运行的模式（%s）不一致。配置导入与修订历史需要数据库存储模式。"
@@ -724,6 +725,18 @@ msgstr "需要先完成恢复，才能执行其他操作。"
 
 msgid "Recovery is required before another write operation."
 msgstr "需要先完成恢复，才能进行其他写入操作。"
+
+msgid "Recover the interrupted operation"
+msgstr "恢复被中断的操作"
+
+msgid "Recovering…"
+msgstr "正在恢复…"
+
+msgid "Recovery completed."
+msgstr "恢复完成。"
+
+msgid "Recovery failed."
+msgstr "恢复失败。"
 
 msgid "Recovery is required. Run system recovery before starting another maintenance operation."
 msgstr "需要先恢复系统，再执行其他维护操作。"
@@ -929,6 +942,9 @@ msgstr "系统检查结果：%s"
 msgid "Temporary upload cleared."
 msgstr "Temporary upload cleared."
 
+msgid "The backup found an entry under /etc/honk it cannot archive (a symlink, a special file, or too many files)."
+msgstr "/etc/honk 下有无法归档的条目（符号链接、特殊文件或文件数量超出上限）。"
+
 msgid "The Clash API listener is unavailable. Check the service logs."
 msgstr "Clash API 监听不可用，请检查服务日志。"
 
@@ -1112,8 +1128,8 @@ msgstr "这些设置改由概览页管理，订阅、节点、分组和分流规
 msgid "These values carry over, written the way the panel expects:"
 msgstr "这些值会保留，只是写法按面板要求调整："
 
-msgid "This configuration is not a plain include of system.dae, so these settings cannot be edited here."
-msgstr "当前配置不是纯粹的 system.dae 引用，这里无法编辑这些设置。"
+msgid "This file includes system.dae and also defines global/experimental itself, so the panel will not guess. Switching moves these settings here; the current file is backed up first."
+msgstr "当前文件既引用 system.dae，又自带 global/experimental，面板不猜归谁管。切换后面板接管这些设置，原文件会先备份。"
 
 msgid "This core cannot use any of these nodes, so the subscription was not saved."
 msgstr "这份订阅里的节点本内核一个都用不了，所以没有保存。"
@@ -1504,3 +1520,36 @@ msgstr "预检失败，请稍后重试。"
 
 msgid "Switch to panel management"
 msgstr "切换为面板管理"
+
+msgid "The maintenance script stopped without reporting a result. Check Maintenance → Logs → Maintenance for the reason."
+msgstr "维护脚本没有返回结果（崩溃或被杀）。请在「维护 → 日志 → 维护」里看具体原因。"
+
+msgid "The /etc/honk directory is missing or is a symlink."
+msgstr "/etc/honk 目录不存在，或者是个符号链接。"
+
+msgid "There is a symlink under /etc/honk. The backup cannot carry it; remove it and try again."
+msgstr "/etc/honk 下面有符号链接，备份无法携带。删掉它再试。"
+
+msgid "There is a non-regular file (device, socket, fifo) under /etc/honk. Remove it and try again."
+msgstr "/etc/honk 下面有非普通文件（设备、socket、管道），删掉它再试。"
+
+msgid "A file under /etc/honk could not be read. Check the filesystem and permissions."
+msgstr "/etc/honk 下面的文件读不出来，请检查存储和权限。"
+
+msgid "A single file under /etc/honk is larger than 64 MB. The service log names it."
+msgstr "/etc/honk 里有单个文件超过 64 MB，日志里写了是哪个。"
+
+msgid "The backup would exceed 512 files or 127 MB. The service log names the entry that crossed the limit."
+msgstr "备份会超过 512 个文件或 127 MB，日志里写了是哪个条目越界。"
+
+msgid "config.dae or system.dae is missing under /etc/honk. Reinstall or repair Honk before backing up."
+msgstr "/etc/honk 里缺 config.dae 或 system.dae，先修复或重装 Honk 再备份。"
+
+msgid "%s Reason: %s"
+msgstr "%s 原因：%s"
+
+msgid "The maintenance worker did not start at all. The panel cannot see why, so this is a packaging or permission problem on the device."
+msgstr "后台维护进程根本没启动起来，面板看不到更细的原因，属于设备上的权限或安装问题。"
+
+msgid "The maintenance worker did not run as root."
+msgstr "后台维护进程不是以 root 身份运行的。"
