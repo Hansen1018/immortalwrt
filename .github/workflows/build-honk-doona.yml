@@ -1,4 +1,4 @@
-name: Build Honk+Doona firmware
+name: Build ImmortalWrt + Honk firmware
 
 on:
   workflow_dispatch:
@@ -874,7 +874,7 @@ on:
           # END generated: device
   push:
     branches:
-      - master-Honk+Doona
+      - honk-vantage
   schedule:
     - cron: "0 18 * * *"
 

@@ -1,75 +1,90 @@
 <img src="https://avatars.githubusercontent.com/u/53193414?s=200&v=4" alt="logo" width="200" height="200" align="right">
 
-# Project ImmortalWrt
+# ImmortalWrt + Honk
 
-ImmortalWrt is a fork of [OpenWrt](https://openwrt.org), with more packages ported, more devices supported, default optimized profiles and localization modifications for mainland China users.<br/>
-Compared to upstream, we allow to use (non-upstreamable) modifications/hacks to provide better feature/performance/support.
+An [ImmortalWrt](https://github.com/immortalwrt/immortalwrt) tree with three upstream projects
+built in, so the images need no extra feed:
 
-Default login address: http://192.168.1.1 or http://immortalwrt.lan, username: __root__, password: _none_.
+- **honk** - an eBPF transparent proxy core (dae compatible), in Rust, shipped as a prebuilt core
+- **doona** - honk's web panel, packaged as a LuCI app
+- **Vantage** - a LuCI theme with a live, read-only dashboard
+
+The tree also builds a **BTF kernel by default** on every target that can run honk: honk is a
+CO-RE eBPF program and needs `/sys/kernel/btf/vmlinux` at runtime, so a kernel without BTF
+would not be able to load it.
+
+## What is in the tree
+
+| Package | What it is | Upstream project |
+|---|---|---|
+| `package/honk` | the transparent proxy core, its init script and the control, maintenance and job scripts | [daeuniverse/honk](https://github.com/daeuniverse/honk) - GPL-3.0-only |
+| `package/luci-app-honk` | the doona panel as a LuCI app | [Zakkaus/doona](https://github.com/Zakkaus/doona) - GPL-3.0-only |
+| `package/luci-theme-vantage` | the Vantage LuCI theme | [anothaDev/luci-theme-vantage](https://github.com/anothaDev/luci-theme-vantage) - GPL-3.0-or-later |
+| `package/luci-app-vantage` | the Vantage dashboard, the landing page after the login | the same upstream project |
+| `package/vmlinux-btf` | a detached kernel BTF, a fallback for kernels built without `CONFIG_DEBUG_INFO_BTF` | [kenzok8/small-package](https://github.com/kenzok8/small-package) |
+
+`honk` and `luci-app-honk` are also part of the default package list of the
+`friendlyarm_nanopi-r5s` profile, so they are selected as soon as that device is chosen.
+
+## Documentation
+
+**[HONK.md](HONK.md)** has the full documentation: which devices can run it, the kernel BTF
+requirement, the version policy, building it, the panel and the storage mode, the geodata, the
+cgroup row of the panel, and the Vantage theme and dashboard.
+
+## Build it yourself
+
+The build needs a GNU/Linux, BSD or macOS system (a case sensitive filesystem is required) and
+the usual OpenWrt dependencies. On Debian or Ubuntu:
+
+```bash
+sudo apt install -y ack antlr3 autoconf automake binutils bison build-essential bzip2   ccache clang cmake cpio flex gawk gettext git gnupg gperf haveged libelf-dev   libgmp3-dev libssl-dev llvm make ninja-build patch perl python3 python3-distutils   python3-setuptools rsync scons subversion swig texinfo unzip zlib1g-dev zstd
+```
+
+Then:
+
+```bash
+git clone -b honk-vantage https://github.com/Hansen1018/immortalwrt-honk.git
+cd immortalwrt-honk
+./scripts/feeds update -a && ./scripts/feeds install -a
+
+# the target and the device, e.g. the FriendlyARM NanoPi R5S
+cat > .config <<'EOF'
+CONFIG_TARGET_rockchip=y
+CONFIG_TARGET_rockchip_armv8=y
+CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r5s=y
+EOF
+
+# plus honk + doona and a BTF kernel
+cat config/honk-doona.config >> .config
+
+make defconfig
+make -j$(nproc)
+```
+
+`config/honk-doona.config` is a ready-made seed with `CONFIG_PACKAGE_honk=y`,
+`CONFIG_PACKAGE_luci-app-honk=y` and `CONFIG_KERNEL_DEBUG_INFO_BTF=y`; append it to your own
+`.config` for any device that can run honk.
+
+## Firmware images
+
+`.github/workflows/build-honk-doona.yml` builds the images on every push to this branch and
+attaches them to the run. It can also be started by hand from the *Actions* tab, where the
+target, the subtarget and the device are **drop-downs** rather than free text.
 
 ## Download
-Built firmware images are available for many architectures and come with a package selection to be used as WiFi home router. To quickly find a factory image usable to migrate from a vendor stock firmware to ImmortalWrt, try the *Firmware Selector*.
+
+The upstream ImmortalWrt images and the firmware selector are unchanged by this tree:
 
 - [ImmortalWrt Firmware Selector](https://firmware-selector.immortalwrt.org/)
 
-If your device is supported, please follow the **Info** link to see install instructions or consult the support resources listed below.
-
-## Development
-To build your own firmware you need a GNU/Linux, BSD or macOS system (case sensitive filesystem required). Cygwin is unsupported because of the lack of a case sensitive file system.<br/>
-
-  ### Requirements
-  To build with this project, Debian 11 is preferred. And you need use the CPU based on AMD64 architecture, with at least 4GB RAM and 25 GB available disk space. Make sure the __Internet__ is accessible.
-
-  The following tools are needed to compile ImmortalWrt, the package names vary between distributions.
-
-  - Here is an example for Debian/Ubuntu users:<br/>
-    - Method 1:
-      <details>
-        <summary>Setup dependencies via APT</summary>
-
-        ```bash
-        sudo apt update -y
-        sudo apt full-upgrade -y
-        sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-          bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
-          g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
-          libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
-          libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
-          ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
-          python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
-          upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
-        ```
-      </details>
-    - Method 2:
-      ```bash
-      sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-      ```
-
-  Note:
-  - Do everything as an unprivileged user, not root, without sudo.
-  - Using CPUs based on other architectures should be fine to compile ImmortalWrt, but more hacks are needed - No warranty at all.
-  - You must __not__ have spaces or non-ascii characters in PATH or in the work folders on the drive.
-  - If you're using Windows Subsystem for Linux (or WSL), removing Windows folders from PATH is required, please see [Build system setup WSL](https://openwrt.org/docs/guide-developer/build-system/wsl) documentation.
-  - Using macOS as the host build OS is __not__ recommended. No warranty at all. You can get tips from [Build system setup macOS](https://openwrt.org/docs/guide-developer/build-system/buildroot.exigence.macosx) documentation.
-  - For more details, please see [Build system setup](https://openwrt.org/docs/guide-developer/build-system/install-buildsystem) documentation.
-
-  ### Quickstart
-  1. Run `git clone -b <branch> --single-branch --filter=blob:none https://github.com/immortalwrt/immortalwrt` to clone the source code.
-  2. Run `cd immortalwrt` to enter source directory.
-  3. Run `./scripts/feeds update -a` to obtain all the latest package definitions defined in feeds.conf / feeds.conf.default
-  4. Run `./scripts/feeds install -a` to install symlinks for all obtained packages into package/feeds/
-  5. Run `make menuconfig` to select your preferred configuration for the toolchain, target system & firmware packages.
-  6. Run `make` to build your firmware. This will download all sources, build the cross-compile toolchain and then cross-compile the GNU/Linux kernel & all chosen applications for your target system.
-
-  ### Related Repositories
-  The main repository uses multiple sub-repositories to manage packages of different categories. All packages are installed via the OpenWrt package manager called opkg. If you're looking to develop the web interface or port packages to ImmortalWrt, please find the fitting repository below.
-  - [LuCI Web Interface](https://github.com/immortalwrt/luci): Modern and modular interface to control the device via a web browser.
-  - [ImmortalWrt Packages](https://github.com/immortalwrt/packages): Community repository of ported packages.
-  - [OpenWrt Routing](https://github.com/openwrt/routing): Packages specifically focused on (mesh) routing.
-  - [OpenWrt Video](https://github.com/openwrt/video): Packages specifically focused on display servers and clients (Xorg and Wayland).
+If your device is supported, please follow the **Info** link to see install instructions or
+consult the support resources listed below.
 
 ## Support Information
+
 For a list of supported devices see the [OpenWrt Hardware Database](https://openwrt.org/supported_devices)
+
   ### Documentation
   - [Quick Start Guide](https://openwrt.org/docs/guide-quick-start/start)
   - [User Guide](https://openwrt.org/docs/guide-user/start)
@@ -80,17 +95,11 @@ For a list of supported devices see the [OpenWrt Hardware Database](https://open
   - Support Chat: group [@ctcgfw_openwrt_discuss](https://t.me/ctcgfw_openwrt_discuss) on [Telegram](https://telegram.org/).
   - Support Chat: group [#immortalwrt](https://matrix.to/#/#immortalwrt:matrix.org) on [Matrix](https://matrix.org/).
 
-## Honk + Doona (eBPF transparent proxy) 与 Vantage（LuCI 主题与仪表盘）
-
-This branch (`master-Honk+Doona`) integrates the honk core, the doona panel and the Vantage
-LuCI theme directly into the tree, so they can be built without adding any extra feed.
-
-**See [HONK.md](HONK.md)** for the full documentation: the package list, which devices can run
-it, the kernel BTF requirement, the version policy, building it, the panel and the storage
-mode, the geodata, the cgroup row, and the Vantage theme and dashboard.
-
 ## License
-ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html).
+
+ImmortalWrt is licensed under [GPL-2.0-only](https://spdx.org/licenses/GPL-2.0-only.html). The
+packages this tree adds carry their own licenses: honk and doona are GPL-3.0-only, the Vantage
+theme GPL-3.0-or-later. The full texts are in each package's `LICENSE` file.
 
 ## Acknowledgements
 <table>

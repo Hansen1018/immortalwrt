@@ -1,6 +1,6 @@
 # Honk + Doona (eBPF transparent proxy) 与 Vantage（LuCI 主题与仪表盘）
 
-This branch (`master-Honk+Doona`) integrates upstream projects directly into the tree,
+This branch (`honk-vantage`) integrates upstream projects directly into the tree,
 so they can be built without adding any extra feed: the honk core and the doona panel
 (the packages below), and the Vantage LuCI theme with its dashboard (the last section
 of this file).
@@ -74,8 +74,8 @@ Side effects of the change:
 ## Build it yourself
 
 ```bash
-git clone -b master-Honk+Doona https://github.com/Hansen1018/immortalwrt.git
-cd immortalwrt
+git clone -b honk-vantage https://github.com/Hansen1018/immortalwrt-honk.git
+cd immortalwrt-honk
 ./scripts/feeds update -a && ./scripts/feeds install -a
 
 # the target and the device, e.g. the FriendlyARM NanoPi R5S
