@@ -31,6 +31,7 @@ var GONE_KEEP_MS = 5 * 60 * 1000;     /* disconnected stations stay listed */
 var TALKERS = 3;                      /* top talkers shown; the tile keeps room for all */
 var SWITCH_MS = 30 * 1000;            /* LuCI runs swconfig for each switch's link state: at most this often */
 var STORE_KEY = 'vantage.hist.v1';
+var VERSION = '1.0.17';               /* this package's, as its Makefile has it (tests/version.test.js) */
 var SVGNS = 'http://www.w3.org/2000/svg';
 var HOSTAPD_OBJ = /^[A-Za-z0-9_.-]{1,64}$/;
 
@@ -458,8 +459,17 @@ function spanShort(ms) {
 	return s >= 60 ? _('%d min', 'vantage').format(Math.floor(s / 60)) : _('%d s', 'vantage').format(s);
 }
 
+/* the history belongs to one login: the next one in this tab starts empty,
+   under any theme. Vantage's login page also deletes it (login.js). */
+function storeOwner() {
+	return String(L.env.sessionid || '').slice(-8);
+}
+
 function readStore() {
-	try { return JSON.parse(window.sessionStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
+	try {
+		var v = JSON.parse(window.sessionStorage.getItem(STORE_KEY) || 'null');
+		return v && (v.sid || '') === storeOwner() ? v : null;
+	} catch (e) { return null; }
 }
 
 function writeStore(v) {
@@ -901,7 +911,7 @@ return view.extend({
 		Object.keys(st.clientHist).slice(0, 32).forEach(function(mac) {
 			keepClients[mac] = st.clientHist[mac].slice(-60).filter(function(p) { return p.every(function(v) { return isFinite(v); }); });
 		});
-		writeStore({ net: st.hist.net, cpu: st.hist.cpu, mem: st.hist.mem, clients: keepClients });
+		writeStore({ sid: storeOwner(), net: st.hist.net, cpu: st.hist.cpu, mem: st.hist.mem, clients: keepClients });
 
 		this.stickyGen(m);
 		m.clients.forEach(function(c) { c.exp = insight.experience(c); c.firstSeen = p.state.firstSeen[c.mac]; c.isNew = !!p.isNew[c.mac]; });
@@ -1113,9 +1123,13 @@ return view.extend({
 		poll.add(L.bind(this.refresh, this), POLL_S);
 		poll.add(L.bind(this.refreshFast, this), FAST_S);
 		document.addEventListener('visibilitychange', function() {
-			if (!document.hidden && self.st.paused) self.refresh();
+			if (!document.hidden && self.st.paused && poll.active()) self.refresh();
 			else self.paintLive();
 		});
+		/* LuCI's refresh paused or resumed from its indicator; on resume
+		   CPU starts over, rather than read as the average over the pause */
+		document.addEventListener('poll-stop', function() { window.setTimeout(function() { self.paintLive(); }, 0); });
+		document.addEventListener('poll-start', function() { self.st.stat = null; self.paintLive(); });
 		document.addEventListener('keydown', L.bind(this.handleKey, this));
 		window.setInterval(function() { self.paintLive(); }, 1000);
 		if (window.ResizeObserver) {
@@ -1668,6 +1682,9 @@ return view.extend({
 	paintHead: function() {
 		var s = this.st.summary, clients = this.m.clients.length;
 		this.el.orb.className = 'vt-orb vt-orb-' + s.level;
+		/* the Vantage theme's refresh dot pulses fast in the same colour
+		   while something needs attention (vantage.css) */
+		document.documentElement.setAttribute('data-vt-alert', s.level === 'warn' || s.level === 'err' ? s.level : '');
 		txt(this.el.headline, s.headline);
 		txt(this.el.subline, this.identity(this.m.device).concat(
 			this.m.wired ? [] : [ clients === 1 ? _('1 client') : _('%d clients').format(clients) ]).join('  ·  '));
@@ -1688,15 +1705,36 @@ return view.extend({
 	paintLive: function() {
 		if (!this.el || !this.el.live) return;
 		var st = this.st, state, label;
-		if (st.paused || document.hidden) { state = 'paused'; label = _('Paused while hidden'); }
+		/* LuCI's own refresh can be paused (its indicator in the header) */
+		var stopped = typeof poll.active === 'function' && !poll.active();
+		if (st.paused || document.hidden || stopped) { state = 'paused'; label = stopped && !document.hidden ? _('Paused') : _('Paused while hidden'); }
 		else if (st.lastErr) { state = 'err'; label = _('Reconnecting…', 'vantage'); }
 		else { state = 'ok'; label = _('Live') + ' · ' + fmt.ago(Date.now() - st.lastOk); }
 		this.el.live.className = 'vt-livepill vt-live-' + state;
+		/* the Vantage theme's refresh dot pulses fast and amber while this
+		   reconnects (vantage.css) */
+		document.documentElement.setAttribute('data-vt-live', state);
 		/* the Vantage theme's poll indicator already says the page is
-		   live: then this pill shows only when it is not */
-		this.el.live.hidden = state === 'ok' && vantageTheme();
+		   live, or that its refresh is paused: then this pill shows only
+		   when neither */
+		this.el.live.hidden = (state === 'ok' || stopped) && vantageTheme();
 		this.el.live.setAttribute('title', label);
 		txt(this.el.liveText, label);
+		this.setMotion(state !== 'paused');
+	},
+
+	/* Nothing moves while the page is paused: the status circle's ring
+	   (app.css, .vt-still), the flow dots stay where they are and the
+	   backdrop keeps its last frame. */
+	setMotion: function(on) {
+		if (this.motionOn === on) return;
+		this.motionOn = on;
+		if (this.el && this.el.root) this.el.root.classList.toggle('vt-still', !on);
+		var map = this.wireMap || {};
+		Object.keys(map).forEach(function(k) {
+			map[k].anims.forEach(function(a) { if (on) a.play(); else a.pause(); });
+		});
+		if (this.backdrop) this.backdrop.pause(!on);
 	},
 
 	/* ----------------------------------------------------------- health */
@@ -1846,13 +1884,14 @@ return view.extend({
 	},
 
 	/* the nodes the path shows: rebuilt only when this changes (a radio,
-	   SSID or network comes or goes); a poll updates text in place */
+	   SSID, network or wired port comes or goes); a poll updates text in
+	   place */
 	heroKey: function() {
-		var m = this.m, lines = '\nlines=' + this.extraLines().map(function(x) { return x.iface; }).join(',');
-		if (m.wired) return 'w\n' + m.networks.filter(function(n) { return n.up; }).slice(0, 8).map(function(n) { return n.name; }).join('\n') + lines;
+		var m = this.m, tail = '\nwired=' + this.wiredPorts().join(',') + '\nlines=' + this.extraLines().map(function(x) { return x.iface; }).join(',');
+		if (m.wired) return 'w\n' + m.networks.filter(function(n) { return n.up; }).slice(0, 8).map(function(n) { return n.name; }).join('\n') + tail;
 		return 'r\n' + m.radios.map(function(r) {
 			return r.id + '=' + m.ssids.filter(function(s) { return s.radio === r.id; }).map(function(s) { return s.id; }).join(',');
-		}).join('\n') + '\nwired=' + this.wiredPorts().join(',') + lines;
+		}).join('\n') + tail;
 	},
 
 	/* the lines to the internet beside the main one (failover, mwan3;
@@ -2000,26 +2039,26 @@ return view.extend({
 				h.radios.push(b);
 			});
 			if (!h.radios.length) h.branches.appendChild(E('div', { 'class': 'vt-empty-inline' }, [ _('No radios reported') ]));
-			/* wired hosts downstream: one branch beside the radios, a node
-			   per port */
-			var ports = this.wiredPorts();
-			if (ports.length) {
-				var wb = { id: 'wired', wired: true, ssids: [], title: span('vt-node-title vt-tn'), sub: span('vt-node-sub vt-tn') };
-				wb.el = E('button', { 'type': 'button', 'class': 'vt-node vt-node-radio', 'click': function() { self.showWired(null); } }, [
-					E('span', { 'class': 'vt-node-body' }, [ E('span', { 'class': 'vt-node-kicker' }, [ _('Wired') ]), wb.title, wb.sub ])
+		}
+		/* wired hosts downstream: one branch beside the radios or the
+		   networks, a node per port; its id is no interface's name */
+		var ports = this.wiredPorts();
+		if (ports.length) {
+			var wb = { id: ':wired', wired: true, ssids: [], title: span('vt-node-title vt-tn'), sub: span('vt-node-sub vt-tn') };
+			wb.el = E('button', { 'type': 'button', 'class': 'vt-node vt-node-radio', 'click': function() { self.showWired(null); } }, [
+				E('span', { 'class': 'vt-node-body' }, [ E('span', { 'class': 'vt-node-kicker' }, [ _('Wired') ]), wb.title, wb.sub ])
+			]);
+			var wcol = E('div', { 'class': 'vt-branch-ssids' });
+			ports.forEach(function(p) {
+				var sn = { id: 'port:' + p, port: p, name: E('span'), count: span('vt-tn'), rate: span('vt-node-sub vt-tn') };
+				sn.el = E('button', { 'type': 'button', 'class': 'vt-node vt-node-ssid', 'click': function() { self.showWired(p); } }, [
+					E('span', { 'class': 'vt-node-body' }, [ E('span', { 'class': 'vt-node-title vt-ssid-name' }, [ sn.name ]), E('span', { 'class': 'vt-node-sub' }, [ sn.count ]), sn.rate ])
 				]);
-				var wcol = E('div', { 'class': 'vt-branch-ssids' });
-				ports.forEach(function(p) {
-					var sn = { id: 'port:' + p, port: p, name: E('span'), count: span('vt-tn'), rate: span('vt-node-sub vt-tn') };
-					sn.el = E('button', { 'type': 'button', 'class': 'vt-node vt-node-ssid', 'click': function() { self.showWired(p); } }, [
-						E('span', { 'class': 'vt-node-body' }, [ E('span', { 'class': 'vt-node-title vt-ssid-name' }, [ sn.name ]), E('span', { 'class': 'vt-node-sub' }, [ sn.count ]), sn.rate ])
-					]);
-					wb.ssids.push(sn);
-					wcol.appendChild(sn.el);
-				});
-				wb.wrap = E('div', { 'class': 'vt-branch' }, [ wb.el, wcol ]);
-				h.radios.push(wb);
-			}
+				wb.ssids.push(sn);
+				wcol.appendChild(sn.el);
+			});
+			wb.wrap = E('div', { 'class': 'vt-branch' }, [ wb.el, wcol ]);
+			h.radios.push(wb);
 		}
 		h.radios.forEach(function(b) {
 			h.branches.appendChild(b.wrap);
@@ -2093,6 +2132,7 @@ return view.extend({
 			var nets = Object.create(null);
 			m.networks.forEach(function(n) { if (n.up && !nets[n.name]) nets[n.name] = n; });
 			h.radios.forEach(function(b) {
+				if (b.wired) { self.updateWiredBranch(b); return; }
 				var n = nets[b.id];
 				if (!n) return;
 				var r = n.dev ? st.devRates[n.dev] : null;
@@ -2300,6 +2340,7 @@ return view.extend({
 			/* every dot takes the whole trip, started i/n of the way along */
 			var a = dot.animate(wires.keyframes(g.samples), { duration: dur, delay: -dur * i / n, iterations: Infinity, easing: 'linear' });
 			a.playbackRate = rate;
+			if (this.motionOn === false) a.pause();
 			g.dots.push(dot);
 			g.anims.push(a);
 		}
@@ -2426,7 +2467,8 @@ return view.extend({
 		}));
 		patch(el.fw, [
 			E('span', {}, [ d.firmware || '' ]),
-			d.kernel ? E('span', { 'class': 'vt-hint' }, [ _('Kernel %s').format(d.kernel) ]) : ''
+			d.kernel ? E('span', { 'class': 'vt-hint' }, [ _('Kernel %s').format(d.kernel) ]) : '',
+			E('span', { 'class': 'vt-hint' }, [ 'Vantage ' + VERSION ])
 		]);
 	},
 

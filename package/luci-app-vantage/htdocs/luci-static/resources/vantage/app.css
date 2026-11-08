@@ -578,16 +578,21 @@ html[data-darkmode="true"] .vt-app {
 	--vt-oc: var(--vt-ok);
 	background: color-mix(in oklab, var(--vt-oc) 16%, transparent);
 }
-/* the ring pulses only while something needs attention */
+/* the ring always pulses, or it reads as stuck: slowly and softly while
+   all is fine, at the full rate when something needs attention */
 .vt-app .vt-orb::after {
 	content: ""; position: absolute; inset: 0; border-radius: 50%;
 	border: 2px solid var(--vt-oc); opacity: .35;
+	animation: vt-ring-soft 5s ease-out infinite;
 }
 .vt-app .vt-orb-warn::after, .vt-app .vt-orb-err::after { animation: vt-ring 2.6s ease-out infinite; }
+/* paused (overview.js setMotion): the ring stands still */
+.vt-app.vt-still .vt-orb::after { animation: none; }
 .vt-app .vt-orb-core { width: 14px; height: 14px; border-radius: 50%; background: var(--vt-oc); box-shadow: 0 0 0 4px color-mix(in oklab, var(--vt-oc) 22%, transparent); }
 .vt-app .vt-orb-warn { --vt-oc: var(--vt-warn); }
 .vt-app .vt-orb-err { --vt-oc: var(--vt-err); }
 @keyframes vt-ring { 0% { transform: scale(.7); opacity: .5; } 100% { transform: scale(1.35); opacity: 0; } }
+@keyframes vt-ring-soft { 0% { transform: scale(.85); opacity: .35; } 100% { transform: scale(1.3); opacity: 0; } }
 
 .vt-app .vt-head-text { min-width: 0; flex: 1; }
 .vt-app .vt-headline {
@@ -604,8 +609,8 @@ html[data-darkmode="true"] .vt-app {
 }
 .vt-app .vt-live-beat { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--vt-beat-c, var(--vt-ok)); }
 /* the beat is a ring that scales and fades (compositor only; an animated
-   box-shadow repainted every frame), only while reconnecting: a live page
-   keeps a still dot. It sits behind the dot (z-index -1 in the pill's
+   box-shadow repainted every frame): slowly while live, at the full rate
+   while reconnecting, not at all while paused. It sits behind the dot (z-index -1 in the pill's
    stacking context) so the dot keeps its colour, and it is transparent
    unless the animation runs: nothing shows without motion. */
 .vt-app .vt-live-beat::after {
@@ -615,8 +620,10 @@ html[data-darkmode="true"] .vt-app {
 }
 .vt-app .vt-live-paused .vt-live-beat { --vt-beat-c: var(--vt-text-3); }
 .vt-app .vt-live-err .vt-live-beat { --vt-beat-c: var(--vt-warn); }
+.vt-app .vt-live-ok .vt-live-beat::after { animation: vt-beat-soft 5s ease-out infinite; }
 .vt-app .vt-live-err .vt-live-beat::after { animation: vt-beat 2s ease-out infinite; }
 @keyframes vt-beat { 0% { transform: scale(1); opacity: 1; } 70%, 100% { transform: scale(2.75); opacity: 0; } }
+@keyframes vt-beat-soft { 0% { transform: scale(1); opacity: .6; } 70%, 100% { transform: scale(2.2); opacity: 0; } }
 
 .vt-app .vt-health {
 	display: grid; gap: 10px; margin-bottom: var(--vt-sp-4);
@@ -775,6 +782,8 @@ html[data-darkmode="true"] .vt-app {
 .vt-app .vt-node-ap { justify-self: stretch; align-self: center; padding: 12px; border-color: color-mix(in oklab, var(--vt-accent-line) 40%, var(--vt-line)); }
 .vt-app .vt-node-ap .vt-node-ico { background: var(--vt-accent-fill); color: var(--vt-accent-fill-ink); }
 .vt-app .vt-node-ap .vt-node-title { font-size: var(--vt-fs-md); }
+/* plain text, unlike a radio's: a wider font or language stays inside */
+.vt-app .vt-node-ap .vt-node-kicker { display: block; overflow: hidden; text-overflow: ellipsis; }
 .vt-app .vt-node-gen { text-transform: none; letter-spacing: 0; font-weight: var(--vt-fw-medium); }
 .vt-app .vt-node-radio { padding: 8px 12px; }
 .vt-app .vt-node-net, .vt-app .vt-node-net:hover { text-decoration: none; color: var(--vt-text); }
@@ -860,10 +869,17 @@ html[data-darkmode="true"] .vt-app {
 .vt-app .vt-branch { display: grid; grid-template-columns: minmax(136px, 172px) minmax(0, 1fr); column-gap: 34px; align-items: center; min-width: 0; }
 .vt-app .vt-branch-ssids { display: flex; flex-direction: column; gap: var(--vt-sp-2); min-width: 0; }
 .vt-app .vt-branch-ssids .vt-node { max-width: 260px; }
+/* a network has no second column: its rates take that room */
+.vt-app .vt-branch > .vt-node-net { grid-column: 1 / -1; justify-self: start; width: 100%; max-width: 260px; }
 
-/* medium widths: the rates need their column, and the branches have room to give */
+/* medium widths: the rates need their column, and the branches have room
+   to give; what a radio or the Wired node leads to goes under it, too
+   narrow beside it */
 @container vthero (max-width: 1020px) {
-	.vt-app .vt-path { grid-template-columns: minmax(150px, 1.05fr) minmax(136px, .9fr) minmax(170px, 1.1fr) minmax(204px, 2fr); }
+	.vt-app .vt-path { grid-template-columns: minmax(150px, 1.05fr) minmax(136px, .9fr) minmax(190px, 1.1fr) minmax(204px, 2fr); }
+	.vt-app .vt-branch { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+	.vt-app .vt-branch > .vt-node { justify-self: start; min-width: min(200px, 100%); }
+	.vt-app .vt-branch-ssids { padding-left: 34px; }
 }
 @container vthero (max-width: 700px) {
 	.vt-app .vt-path { grid-template-columns: minmax(0, 1fr); gap: 12px; min-height: 0; }
@@ -871,9 +887,6 @@ html[data-darkmode="true"] .vt-app {
 	.vt-app .vt-link-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; justify-content: flex-start; padding: 0 0 0 44px; }
 	.vt-app .vt-link-label > * { align-self: center; }
 	.vt-app .vt-branches { padding-left: 34px; gap: 12px; }
-	.vt-app .vt-branch { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
-	.vt-app .vt-branch > .vt-node { justify-self: start; min-width: 200px; }
-	.vt-app .vt-branch-ssids { padding-left: 34px; }
 	.vt-app .vt-branch-ssids .vt-node { max-width: none; align-self: stretch; }
 	/* one column: the main line, its rates, the other lines set in (their
 	   wires join the main line's drop into the device), the device */
