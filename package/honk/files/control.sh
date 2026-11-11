@@ -297,30 +297,67 @@ config_tree_hash() {
 
 # db 模式下核心跑的是状态库里的修订，配置文件改了不会生效（上游原话：
 # "File edits reach the database only through import"）。上游的规矩是
-# 「库里没有修订时，启动会导入 -c」—— 清掉修订（管理员记录、订阅记录都留着），
-# 核心下次启动就把当前配置文件导入成修订 1，文件重新说了算。
-# 面板自己在库里改的东西不受影响：文件没变就不清。
+# 「库里没有修订时，启动会导入 -c」—— 把核心自己的那几张表清空（管理员
+# 记录、订阅记录都留着），核心下次启动就把当前配置文件导入成修订 1，文件
+# 重新说了算。
+#
+# 清哪几张表，少一张核心就起不来（实测）：
+#   head、revision：库里留着修订时核心按库里那份跑，只清 head 不够。
+#   listener_secret：启动导入会把文件里的密钥重新插进这张表，旧行还在就撞
+#     唯一索引，导入失败，核心报「configuration db: configuration database
+#     is unavailable」直接退出。文件里没有、只有库里有的密钥保留：核心不会
+#     重插那一条，留着不冲突。
+#   sqlite_sequence：revision 的编号计数，清了只是从 1 重新编号。
+#
+# 什么时候清：配置文件改了（指纹对不上），或者库里存的地理数据下载源已经
+# 过时（见 honk_stale_geodata_url）。清成功之后才记下指纹：记早了的话，清
+# 失败下一次就不会再清。
 sync_db_revisions() {
 	load_settings
 	config_get store_mode main store db
 	[ "$store_mode" = db ] || { echo '{"ok":true,"message":"store_mode_not_db"}'; return 0; }
+	# 核心在跑的时候不动它的库：清完库里的 head，核心手里的 head 就指着
+	# 一条不存在的修订，下一次写库会失败。等它下次启动再导入。
+	[ -n "$(managed_core_pid 2>/dev/null)" ] && { echo '{"ok":true,"message":"core_running"}'; return 0; }
+	db=/etc/honk/state/honk.db
+	[ -f "$db" ] && [ ! -L "$db" ] || { echo '{"ok":true,"message":"state_database_absent"}'; return 0; }
+	command -v sqlite3 >/dev/null 2>&1 || { echo '{"ok":false,"message":"sqlite_missing"}'; return 1; }
 	current=$(config_tree_hash)
 	stored=$(cat /etc/honk/.file-hash 2>/dev/null || echo '')
-	[ -n "$current" ] && printf '%s' "$current" > /etc/honk/.file-hash 2>/dev/null || :
-	if [ -z "$current" ] || [ "$current" = "$stored" ]; then
+	stale_url=$(honk_stale_geodata_url "$db")
+	if [ -z "$current" ] || { [ "$current" = "$stored" ] && [ -z "$stale_url" ]; }; then
 		echo '{"ok":true,"message":"configuration_unchanged"}'
 		return 0
 	fi
-	[ -f /etc/honk/state/honk.db ] && [ ! -L /etc/honk/state/honk.db ] || {
-		echo '{"ok":true,"message":"state_database_absent"}'
-		return 0
-	}
-	command -v sqlite3 >/dev/null 2>&1 || { echo '{"ok":false,"message":"sqlite_missing"}'; return 1; }
-	if ! sqlite3 /etc/honk/state/honk.db "PRAGMA foreign_keys=ON; DELETE FROM head; DELETE FROM revision; DELETE FROM sqlite_sequence WHERE name='revision';" >/dev/null 2>&1; then
+	for api in native_api clash_api; do
+		secret=$(sqlite3 "$db" "SELECT value FROM listener_secret WHERE api='$api';" 2>/dev/null)
+		[ -n "$secret" ] || continue
+		grep -qF -- "$secret" /etc/honk/config.dae /etc/honk/system.dae 2>/dev/null || continue
+		sqlite3 "$db" "DELETE FROM listener_secret WHERE api='$api';" 2>/dev/null || :
+	done
+	if ! sqlite3 "$db" "PRAGMA foreign_keys=ON; DELETE FROM head; DELETE FROM revision; DELETE FROM sqlite_sequence WHERE name='revision';" >/dev/null 2>&1; then
 		echo '{"ok":false,"message":"revisions_not_cleared"}'
 		return 1
 	fi
+	[ -n "$current" ] && printf '%s' "$current" > /etc/honk/.file-hash 2>/dev/null || :
+	logger -t honk "the state db will re-import the current config at the next start"
 	echo '{"ok":true,"message":"revisions_cleared"}'
+}
+
+# 库里存的地理数据下载源是不是过时的：它写着「从配置文件来的」地址，而当前
+# 配置文件里没有这个地址。核心只在启动时算一次这份清单（Sources::open 里的
+# seed），过时的那份就一直用下去 —— 面板的「立即更新」因此只会超时。
+# 库里用户自己设的地址（from_config 为 false）不算过时，那份不动。
+# 打印过时的那份地址（没有就不打印）。
+honk_stale_geodata_url() {
+	record=$(sqlite3 "$1" 'SELECT record FROM geodata_settings WHERE id=1;' 2>/dev/null) || return 0
+	[ -n "$record" ] || return 0
+	printf '%s\n' "$record" | sed 's/{"urls"/\n{"urls"/g' | while IFS= read -r entry; do
+		case "$entry" in *'"from_config"'*true*) ;; *) continue ;; esac
+		url=$(printf '%s' "$entry" | sed -n 's/.*"urls":\["\([^"]*\)"\].*/\1/p')
+		[ -n "$url" ] || continue
+		grep -qF -- "$url" /etc/honk/config.dae /etc/honk/system.dae 2>/dev/null || printf '%s\n' "$url"
+	done
 }
 
 preflight() {
