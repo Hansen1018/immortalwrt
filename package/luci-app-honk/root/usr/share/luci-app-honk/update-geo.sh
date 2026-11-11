@@ -6,6 +6,15 @@
 
 TYPE="$1"
 
+# The core's own source list lives in the honk package (one list, one order:
+# the upstream's two addresses first, our Loyalsoldier mirror as the fallback),
+# so this path and the panel's own update fetch the same bytes and do not fight.
+. /usr/share/honk/geodata.sh 2>/dev/null || :
+command -v honk_geodata_sources >/dev/null 2>&1 || {
+	echo "the honk package's geodata source list is missing" >&2
+	exit 70
+}
+
 # One data source: prefer the core configuration's assets.geodata.<type> (the
 # core's own update uses it too), so both paths fetch the same bytes. The core
 # then sees an identical file and skips the replacement instead of fighting
@@ -63,19 +72,15 @@ validate_with_core() {
 # read-only partition, and the core replaces the loaded file in place (a
 # read-only path fails the replacement, which is what the panel reported).
 #
-# The sources are the core's own built-in list (MetaCubeX/meta-rules-dat,
-# raw.githubusercontent first, jsDelivr where GitHub is slow), so this path
+# The sources are the same list the core uses (the upstream's own two first,
+# our Loyalsoldier mirror as the fallback), in the same order, so this path
 # and the panel's own update fetch the same bytes and do not fight.
 case "$TYPE" in
 	geoip)
-		DEF_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat"
-		ALT_URL="https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
 		URL="$(geodata_url geoip)"
 		DEST="/etc/honk/geoip.dat"
 		;;
 	geosite)
-		DEF_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat"
-		ALT_URL="https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
 		URL="$(geodata_url geosite)"
 		DEST="/etc/honk/geosite.dat"
 		;;
@@ -84,13 +89,16 @@ case "$TYPE" in
 		exit 64
 		;;
 esac
-[ -n "$URL" ] || URL="$DEF_URL"
-# The configured source first, then the core's own fallback mirror.
-if [ "$URL" = "$DEF_URL" ]; then
-	URL="$DEF_URL"
-	FALLBACK="$ALT_URL"
+# No address configured: the default list - the upstream's own two first (the
+# raw one and jsDelivr where GitHub is slow), our Loyalsoldier mirror as the
+# fallback. One that does not answer is skipped and the next one is tried; the
+# core uses the same list in the same order (control.sh geodata-sources), so
+# both paths fetch the same bytes. A configured address is used on its own:
+# the user's own choice wins on both paths.
+if [ -n "$URL" ]; then
+	URLS="$URL"
 else
-	FALLBACK=""
+	URLS="$(honk_geodata_sources "$TYPE")"
 fi
 
 LOCK="/tmp/luci-app-honk.${TYPE}.lock"
@@ -133,19 +141,18 @@ fi
 	rc=0
 	TMP="${DEST}.new"
 	mkdir -p "$(dirname "$DEST")"
-	echo "$(date '+%F %T') begin: $URL"
+	echo "$(date '+%F %T') begin: $URLS"
 
-	if ! curl -fsSL --proto '=http,https' --proto-redir '=http,https' --connect-timeout 15 --max-time 240 -o "$TMP" "$URL"; then
-		rm -f "$TMP"
-		# The core's own list has a second address (jsDelivr where GitHub is slow);
-		# use it too, so both paths fetch the same bytes from the same place.
-		if [ -n "$FALLBACK" ]; then
-			echo "$(date '+%F %T') $URL failed, trying $FALLBACK"
-			URL="$FALLBACK"
-			FALLBACK=""
-			curl -fsSL --proto '=http,https' --proto-redir '=http,https' --connect-timeout 15 --max-time 240 -o "$TMP" "$URL" || rm -f "$TMP"
+	# One that does not answer is skipped and the next one is tried: the default
+	# list holds four addresses (the upstream's two, then our Loyalsoldier
+	# mirror). The core walks the same list in the same order.
+	for URL in $URLS; do
+		if curl -fsSL --proto '=http,https' --proto-redir '=http,https' --connect-timeout 15 --max-time 240 -o "$TMP" "$URL"; then
+			break
 		fi
-	fi
+		rm -f "$TMP"
+		echo "$(date '+%F %T') $URL failed, trying the next one"
+	done
 	if [ ! -s "$TMP" ]; then
 		echo "$(date '+%F %T') download failed"
 		rm -f "$TMP"

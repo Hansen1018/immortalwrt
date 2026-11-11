@@ -360,6 +360,70 @@ honk_stale_geodata_url() {
 	done
 }
 
+# 把地理数据的下载源列表写进状态库 —— 面板的「立即更新」用的就是这份。
+#
+# 核心的配置文件每个文件只能写一个下载地址，写死一个就没有退路；库里可以存
+# 最多四个（MAX_URLS=4），是面板写的那种补丁（from_config=false）：配置文件
+# 不写地址时它就一直留着，核心按顺序一个一个试。
+#
+# 写什么：上游原版的两个地址在前（MetaCubeX 的 raw 与 jsDelivr），我们自己
+# 那份 Loyalsoldier 在后当兜底（见 geodata.sh 的 honk_geodata_sources）。
+# LuCI 的 update-geo.sh 用同一份列表、同一个顺序。
+#
+# 用户在 LuCI 里填了自己的地址（honk.main.<type>_url）就用那一个：核心那边
+# 也一样，两条路径才拿同样的字节。
+#
+# 什么时候写：库里没有列表，或者留着的还是旧配置文件带来的那份
+# （from_config=true，而配置文件已经不写地址了 → 过时）。用户自己在面板里
+# 设的列表不动 —— 那是他的选择。
+geodata_sources() {
+	db=/etc/honk/state/honk.db
+	[ -f "$db" ] && [ ! -L "$db" ] || { echo '{"ok":true,"message":"state_database_absent"}'; return 0; }
+	# 核心在跑的时候不动它的库：它手里的清单是启动时读进去的，改了库也要等
+	# 下次启动才生效。
+	[ -n "$(managed_core_pid 2>/dev/null)" ] && { echo '{"ok":true,"message":"core_running"}'; return 0; }
+	command -v sqlite3 >/dev/null 2>&1 || { echo '{"ok":false,"message":"sqlite_missing"}'; return 1; }
+	record=$(sqlite3 "$db" 'SELECT record FROM geodata_settings WHERE id=1;' 2>/dev/null)
+	ours=$( { geodata_desired_list geosite; geodata_desired_list geoip; } | sort )
+	theirs=$(printf '%s' "$record" | grep -o 'https\?://[^"]*' | sort)
+	if [ -n "$theirs" ] && [ "$ours" != "$theirs" ]; then
+		case "$record" in
+		*'"from_config":true'*) : ;;
+		*) echo '{"ok":true,"message":"custom_sources_kept"}'; return 0 ;;
+		esac
+	fi
+	urls=$(printf '[{"urls":%s,"from_config":false},{"urls":%s,"from_config":false}]' \
+		"$(geodata_desired_list geosite | geodata_urls_json)" \
+		"$(geodata_desired_list geoip | geodata_urls_json)")
+	if ! sqlite3 "$db" "UPDATE geodata_settings SET record = json_set(CASE WHEN json_valid(record) THEN record ELSE '{}' END, '\$.urls', json('$urls')) WHERE id = 1;" >/dev/null 2>&1; then
+		echo '{"ok":false,"message":"sources_not_stored"}'
+		return 1
+	fi
+	if [ "$(sqlite3 "$db" 'SELECT count(*) FROM geodata_settings WHERE id=1;' 2>/dev/null)" != 1 ]; then
+		if ! sqlite3 "$db" "INSERT OR REPLACE INTO geodata_settings (id, record) VALUES (1, json_object('urls', json('$urls')));" >/dev/null 2>&1; then
+			echo '{"ok":false,"message":"sources_not_stored"}'
+			return 1
+		fi
+	fi
+	logger -t honk "the geodata sources are stored in the state db (the upstream list first, Loyalsoldier as the fallback)"
+	echo '{"ok":true,"message":"sources_stored"}'
+}
+
+# 这个文件要试的地址：用户在 LuCI 里填了自己的地址就用那一个，否则用默认的
+# 那四个（上游原版两个 + Loyalsoldier 兜底）。
+geodata_desired_list() {
+	custom=$(uci -q get "honk.main.$1_url" 2>/dev/null)
+	case "$custom" in
+	https://*.dat) printf '%s\n' "$custom" ;;
+	*) honk_geodata_sources "$1" ;;
+	esac
+}
+
+# 把一个地址列表写成核心存的那个 JSON 数组。
+geodata_urls_json() {
+	awk 'BEGIN { printf "["; first = 1 } NF { if (!first) printf ","; printf "\"%s\"", $0; first = 0 } END { printf "]" }'
+}
+
 preflight() {
 	load_settings
 	[ "$enabled" = 1 ] && [ "$initialized" = 1 ] || { fail "请先在 LuCI 里启用并完成初始化"; return 1; }
@@ -1395,6 +1459,9 @@ case "$1" in
 	sync-db)
 		sync_db_revisions
 		;;
+	geodata-sources)
+		geodata_sources
+		;;
 	initialize)
 		initialize
 		;;
@@ -1411,7 +1478,7 @@ case "$1" in
 		recover
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|repair|detach|recover}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|geodata-sources|repair|detach|recover}" >&2
 		exit 2
 		;;
 esac

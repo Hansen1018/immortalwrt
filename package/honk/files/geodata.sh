@@ -36,3 +36,37 @@ honk_geodata_strip() {
 	cp -p "$1" "$2" || return 1
 	return 0
 }
+
+# 地理数据的下载源列表：上游原版的两个地址在前（MetaCubeX 的 raw 与
+# jsDelivr），我们自己那份 Loyalsoldier 在后当兜底 —— 一个不通就换下一个。
+#
+# 为什么是四个而不是配置文件里的一个：核心的配置文件每个文件只能写一个地址
+# （geosite_download_url / geoip_download_url），写死一个就没有退路 —— 面板的
+# 「立即更新」当初就是只试了那个墙内不通的地址才一直失败。库里可以存最多四个
+# （MAX_URLS=4），是面板写的那种补丁（from_config=false）：配置文件不写地址
+# 时它就一直留着，核心按顺序一个一个试。
+#
+# 面板的「立即更新」与 LuCI 的「更新」用同一份列表、同一个顺序，两条路径拿到
+# 的字节才一样，不会互相覆盖。
+#
+# honk_geodata_sources <geosite|geoip>
+#   打印这个文件要试的地址，一个一行，按顺序。
+honk_geodata_sources() {
+	case "$1" in
+	geosite)
+		printf '%s\n' \
+			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat' \
+			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat' \
+			'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat' \
+			'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat'
+		;;
+	geoip)
+		printf '%s\n' \
+			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat' \
+			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat' \
+			'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat' \
+			'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat'
+		;;
+	*) return 1 ;;
+	esac
+}

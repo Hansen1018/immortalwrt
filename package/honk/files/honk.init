@@ -66,6 +66,9 @@ start_service() {
 		logger -t honk "removed the old geodata source block from the config"
 	fi
 	"$HONK_CONTROL" sync-db >/dev/null 2>&1 || :
+	# 下载源清单：上游原版的两个地址在前，我们自己那份 Loyalsoldier 在后兜底。
+	# 清单只在启动时算一次，所以要在核心起来之前写进状态库。
+	"$HONK_CONTROL" geodata-sources >/dev/null 2>&1 || :
 	unset HONK_MAINT_CAP
 
 	# 所有配置都走 readiness 标记：状态页据此判断真正就绪，而不是只看进程在不在。
