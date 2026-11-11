@@ -383,7 +383,7 @@ argv 访问不可得时，cgroup 钩子改用调用线程的 `comm`」。
 GPL-3.0-or-later）：一套 LuCI 主题（图标栏、面包屑、Ctrl+K 搜索、明暗主题、手机端底栏）
 和一个只读的实时仪表盘（上线状态、CPU/内存/无线/客户端、实时流量、防火墙概览）。
 
-两个包**原样**放在 `package/` 里（上游 v1.0.17，commit `a3709217e7`，文件与上游逐字节
+两个包**原样**放在 `package/` 里（上游 v1.0.18，commit `d6ffd9696eec`，文件与上游逐字节
 一致）：
 
 | 包 | 作用 |
@@ -404,7 +404,7 @@ GPL-3.0-or-later）：一套 LuCI 主题（图标栏、面包屑、Ctrl+K 搜索
 简体中文翻译一起编进来：`luci-i18n-vantage-theme-zh-cn`（主题）与
 `luci-i18n-vantage-zh-cn`（仪表盘）。
 
-**更新到上游新版本**（以 v1.0.18 为例）：
+**更新到上游新版本**（把下面的 `v1.0.18` 换成目标版本）：
 
 ```sh
 git clone --depth 1 --branch v1.0.18 https://github.com/anothaDev/luci-theme-vantage.git /tmp/vantage
