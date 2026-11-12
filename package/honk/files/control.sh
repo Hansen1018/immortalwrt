@@ -1462,6 +1462,10 @@ case "$1" in
 	geodata-sources)
 		geodata_sources
 		;;
+	geodata-files)
+		geodata_files
+		echo '{"ok":true,"message":"geodata_files_ready"}'
+		;;
 	initialize)
 		initialize
 		;;
@@ -1478,7 +1482,7 @@ case "$1" in
 		recover
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|geodata-sources|repair|detach|recover}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|geodata-sources|geodata-files|repair|detach|recover}" >&2
 		exit 2
 		;;
 esac
