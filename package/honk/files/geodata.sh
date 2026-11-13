@@ -16,9 +16,9 @@
 #   调用方要的是「没有旧下载源的文件」，而不是「有没有改动过」。
 honk_geodata_strip() {
 	[ -f "$1" ] && [ ! -L "$1" ] || return 1
-	# 只认我们自己写的那一对地址：别的写法是用户自己的配置。
-	if grep -q 'Loyalsoldier/v2ray-rules-dat/release/geosite.dat' "$1" &&
-		grep -q 'Loyalsoldier/v2ray-rules-dat/release/geoip.dat' "$1"; then
+	# 只认我们自己写的那个地址（Loyalsoldier）：别的写法是用户自己的配置。
+	# 两个地址都在、只写了 geosite、或者换了写法，都算我们写的那份，都去掉。
+	if grep -q 'Loyalsoldier' "$1"; then
 		awk '
 			# 这两行注释是跟着下载源一起写的，删段就一起删。
 			/^# 地理数据的下载源：与核心配置/ { next }

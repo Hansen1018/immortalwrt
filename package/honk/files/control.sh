@@ -389,7 +389,17 @@ geodata_sources() {
 	if [ -n "$theirs" ] && [ "$ours" != "$theirs" ]; then
 		case "$record" in
 		*'"from_config":true'*) : ;;
-		*) echo '{"ok":true,"message":"custom_sources_kept"}'; return 0 ;;
+		*)
+			# 留着的还是我们自己那个写死的 Loyalsoldier 单地址（面板里设过的源，
+			# 或旧版本写进去的）：换成我们这份 —— 它把 Loyalsoldier 放在最后兜底，
+			# 用途一样，还多了三个地址。用户自己写的别的地址不动，那是他的选择。
+			if printf '%s' "$theirs" | grep -q 'Loyalsoldier'; then
+				:
+			else
+				echo '{"ok":true,"message":"custom_sources_kept"}'
+				return 0
+			fi
+			;;
 		esac
 	fi
 	urls=$(printf '[{"urls":%s,"from_config":false},{"urls":%s,"from_config":false}]' \
