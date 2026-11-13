@@ -393,7 +393,7 @@ argv 访问不可得时，cgroup 钩子改用调用线程的 `comm`」。
 GPL-3.0-or-later）：一套 LuCI 主题（图标栏、面包屑、Ctrl+K 搜索、明暗主题、手机端底栏）
 和一个只读的实时仪表盘（上线状态、CPU/内存/无线/客户端、实时流量、防火墙概览）。
 
-两个包**原样**放在 `package/` 里（上游 v1.0.19，commit `ed6be0a7c2fb`，文件与上游逐字节
+两个包**原样**放在 `package/` 里（上游 v1.0.20，commit `0f8d16f2ce25`，文件与上游逐字节
 一致）：
 
 | 包 | 作用 |
@@ -414,10 +414,10 @@ GPL-3.0-or-later）：一套 LuCI 主题（图标栏、面包屑、Ctrl+K 搜索
 简体中文翻译一起编进来：`luci-i18n-vantage-theme-zh-cn`（主题）与
 `luci-i18n-vantage-zh-cn`（仪表盘）。
 
-**更新到上游新版本**（把下面的 `v1.0.19` 换成目标版本）：
+**更新到上游新版本**（把下面的 `v1.0.20` 换成目标版本）：
 
 ```sh
-git clone --depth 1 --branch v1.0.19 https://github.com/anothaDev/luci-theme-vantage.git /tmp/vantage
+git clone --depth 1 --branch v1.0.20 https://github.com/anothaDev/luci-theme-vantage.git /tmp/vantage
 rm -rf package/luci-theme-vantage package/luci-app-vantage
 cp -a /tmp/vantage/luci-theme-vantage /tmp/vantage/luci-app-vantage package/
 chown -R openwrt:openwrt package/luci-theme-vantage package/luci-app-vantage
