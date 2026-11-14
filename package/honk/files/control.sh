@@ -428,8 +428,8 @@ geodata_status() {
 # 置列表）；用户在 LuCI 里选过来源就写他选的那个；用户在面板里自己设的列表不
 # 动 —— 那是他的选择。
 #
-# 下载出口：库里没有这一项时写上 direct（地址直连，不走代理）；用户在面板里
-# 自己选过出口的就不动。
+# 下载出口：不写。出口由路由规则决定（上游也不写出口，面板里可以自己选）——
+# 我们不替用户决定地理数据该走哪条路。
 
 geodata_sources() {
 	db=/etc/honk/state/honk.db
@@ -438,6 +438,17 @@ geodata_sources() {
 	# 下次启动才生效。
 	[ -n "$(managed_core_pid 2>/dev/null)" ] && { echo '{"ok":true,"message":"core_running"}'; return 0; }
 	command -v sqlite3 >/dev/null 2>&1 || { echo '{"ok":false,"message":"sqlite_missing"}'; return 1; }
+	# 一次性迁移：上一版我们自己写进去的直连出口。出口归路由规则管（上游也不
+	# 写出口，面板里也能自己选），所以清掉它。清一次就够：之后面板里选什么
+	# 就是什么。
+	if [ ! -e /etc/honk/.geodata-route-migrated ]; then
+		route_now=$(sqlite3 "$db" "SELECT json_extract(record, '\$.download.route.route') FROM geodata_settings WHERE id=1;" 2>/dev/null)
+		if [ "$route_now" = direct ]; then
+			sqlite3 "$db" "UPDATE geodata_settings SET record = json_remove(record, '\$.download') WHERE id = 1;" >/dev/null 2>&1 || :
+			logger -t honk "the direct geodata download route is gone; the routing rules decide again"
+		fi
+		: > /etc/honk/.geodata-route-migrated 2>/dev/null || :
+	fi
 	record=$(sqlite3 "$db" 'SELECT record FROM geodata_settings WHERE id=1;' 2>/dev/null)
 	# 库里留着的地址：我们写的那份混着两个来源（MetaCubeX + Loyalsoldier）要清掉
 	# —— 面板的下拉按来源匹配，混着它认不出来，会落回「自定义」把四个地址一
@@ -456,21 +467,9 @@ geodata_sources() {
 			"$(geodata_desired_list geosite | geodata_urls_json)" \
 			"$(geodata_desired_list geoip | geodata_urls_json)")
 	fi
-	# 下载不走代理：地址直连。库里没有这一项时写上；用户在面板里自己选过出口
-	# 的（from_config=false）就不动 —— 那是他的选择。
-	has_route=$(sqlite3 "$db" "SELECT coalesce(json_type(record, '\$.download'), 'null') FROM geodata_settings WHERE id=1;" 2>/dev/null)
-	case "$has_route" in
-	object) has_route='' ;;
-	*) has_route=1 ;;
-	esac
 	# 要改的字段
 	sets=''
 	[ -n "$urls" ] && sets="'\$.urls', json('$urls')"
-	if [ -n "$has_route" ]; then
-		route_part="'\$.download', json('{\"route\":{\"route\":\"direct\"}}')"
-		[ -n "$sets" ] && sets="$sets, "
-		sets="${sets}${route_part}"
-	fi
 	if [ -n "$sets" ]; then
 		if ! sqlite3 "$db" "UPDATE geodata_settings SET record = json_set(CASE WHEN json_valid(record) THEN record ELSE '{}' END, $sets) WHERE id = 1;" >/dev/null 2>&1; then
 			echo '{"ok":false,"message":"sources_not_stored"}'

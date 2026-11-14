@@ -66,8 +66,8 @@ start_service() {
 		logger -t honk "removed the old geodata source block from the config"
 	fi
 	"$HONK_CONTROL" sync-db >/dev/null 2>&1 || :
-	# 下载源清单：上游原版的两个地址在前，我们自己那份 Loyalsoldier 在后兜底。
-	# 清单只在启动时算一次，所以要在核心起来之前写进状态库。
+	# 下载源清单：一个来源（默认是上游原版那一份），清单只在启动时算一次，
+	# 所以要在核心起来之前写进状态库。
 	"$HONK_CONTROL" geodata-sources >/dev/null 2>&1 || :
 	# 地理数据必须在数据目录里：软件包（v2ray-geodata）那份在只读分区
 	# （squashfs）里，核心更新时要原地替换加载着的那份 —— 写不进去，面板的
