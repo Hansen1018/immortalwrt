@@ -412,16 +412,25 @@ geodata_status() {
 # 最多四个（MAX_URLS=4），是面板写的那种补丁（from_config=false）：配置文件
 # 不写地址时它就一直留着，核心按顺序一个一个试。
 #
-# 写什么：上游原版的两个地址在前（MetaCubeX 的 raw 与 jsDelivr），我们自己
-# 那份 Loyalsoldier 在后当兜底（见 geodata.sh 的 honk_geodata_sources）。
-# LuCI 的 update-geo.sh 用同一份列表、同一个顺序。
+# 写什么：一个来源的那一组镜像（见 geodata.sh）：默认是上游原版那一份
+# （MetaCubeX 的 raw 与 jsDelivr）。LuCI 的 update-geo.sh 用同一份列表、同一个
+# 顺序。
 #
-# 用户在 LuCI 里填了自己的地址（honk.main.<type>_url）就用那一个：核心那边
-# 也一样，两条路径才拿同样的字节。
+# 为什么是一个来源而不是几个混在一起：面板的下拉按来源匹配（metacubex /
+# metacubex-lite / loyalsoldier），混着两个来源它认不出来，会落回「自定义」
+# 把几个地址一起塞进去；兜底时还可能换到另一份规则集，分类对不上，更新会被
+# 核心拒掉。
 #
-# 什么时候写：库里没有列表，或者留着的还是旧配置文件带来的那份
-# （from_config=true，而配置文件已经不写地址了 → 过时）。用户自己在面板里
-# 设的列表不动 —— 那是他的选择。
+# 用户在 LuCI 里选过来源（honk.main.<type>_url）就写那个来源的镜像组：核心那边
+# 也一样，两条路径才拿同样的字节，面板的下拉也显示同一个来源。
+#
+# 什么时候写：我们那份混着两个来源的旧列表要清掉（清掉之后核心用它自己的内
+# 置列表）；用户在 LuCI 里选过来源就写他选的那个；用户在面板里自己设的列表不
+# 动 —— 那是他的选择。
+#
+# 下载出口：库里没有这一项时写上 direct（地址直连，不走代理）；用户在面板里
+# 自己选过出口的就不动。
+
 geodata_sources() {
 	db=/etc/honk/state/honk.db
 	[ -f "$db" ] && [ ! -L "$db" ] || { echo '{"ok":true,"message":"state_database_absent"}'; return 0; }
@@ -430,49 +439,67 @@ geodata_sources() {
 	[ -n "$(managed_core_pid 2>/dev/null)" ] && { echo '{"ok":true,"message":"core_running"}'; return 0; }
 	command -v sqlite3 >/dev/null 2>&1 || { echo '{"ok":false,"message":"sqlite_missing"}'; return 1; }
 	record=$(sqlite3 "$db" 'SELECT record FROM geodata_settings WHERE id=1;' 2>/dev/null)
-	ours=$( { geodata_desired_list geosite; geodata_desired_list geoip; } | sort )
-	theirs=$(printf '%s' "$record" | grep -o 'https\?://[^"]*' | sort)
-	if [ -n "$theirs" ] && [ "$ours" != "$theirs" ]; then
-		case "$record" in
-		*'"from_config":true'*) : ;;
-		*)
-			# 留着的还是我们自己那个写死的 Loyalsoldier 单地址（面板里设过的源，
-			# 或旧版本写进去的）：换成我们这份 —— 它把 Loyalsoldier 放在最后兜底，
-			# 用途一样，还多了三个地址。用户自己写的别的地址不动，那是他的选择。
-			if printf '%s' "$theirs" | grep -q 'Loyalsoldier'; then
-				:
-			else
-				echo '{"ok":true,"message":"custom_sources_kept"}'
-				return 0
-			fi
-			;;
-		esac
+	# 库里留着的地址：我们写的那份混着两个来源（MetaCubeX + Loyalsoldier）要清掉
+	# —— 面板的下拉按来源匹配，混着它认不出来，会落回「自定义」把四个地址一
+	# 起塞进去；兜底时还可能换到另一份规则集（分类对不上，更新会被核心拒掉）。
+	# 清掉之后核心用它自己的内置列表：上游原版那一份，一个来源。
+	urls=''
+	case "$record" in
+	*MetaCubeX*Loyalsoldier*|*Loyalsoldier*MetaCubeX*)
+		urls='[null,null]'
+		;;
+	esac
+	# 用户在 LuCI 里选过来源：写他选的那个来源的镜像组（面板的下拉才认得出是
+	# 哪个来源）。没选过就留着库里现在的 —— 面板里自己选的，或核心的内置列表。
+	if [ -z "$urls" ] && [ -n "$(geodata_configured_url)" ]; then
+		urls=$(printf '[{"urls":%s,"from_config":false},{"urls":%s,"from_config":false}]' \
+			"$(geodata_desired_list geosite | geodata_urls_json)" \
+			"$(geodata_desired_list geoip | geodata_urls_json)")
 	fi
-	urls=$(printf '[{"urls":%s,"from_config":false},{"urls":%s,"from_config":false}]' \
-		"$(geodata_desired_list geosite | geodata_urls_json)" \
-		"$(geodata_desired_list geoip | geodata_urls_json)")
-	if ! sqlite3 "$db" "UPDATE geodata_settings SET record = json_set(CASE WHEN json_valid(record) THEN record ELSE '{}' END, '\$.urls', json('$urls')) WHERE id = 1;" >/dev/null 2>&1; then
-		echo '{"ok":false,"message":"sources_not_stored"}'
-		return 1
+	# 下载不走代理：地址直连。库里没有这一项时写上；用户在面板里自己选过出口
+	# 的（from_config=false）就不动 —— 那是他的选择。
+	has_route=$(sqlite3 "$db" "SELECT coalesce(json_type(record, '\$.download'), 'null') FROM geodata_settings WHERE id=1;" 2>/dev/null)
+	case "$has_route" in
+	object) has_route='' ;;
+	*) has_route=1 ;;
+	esac
+	# 要改的字段
+	sets=''
+	[ -n "$urls" ] && sets="'\$.urls', json('$urls')"
+	if [ -n "$has_route" ]; then
+		route_part="'\$.download', json('{\"route\":{\"route\":\"direct\"}}')"
+		[ -n "$sets" ] && sets="$sets, "
+		sets="${sets}${route_part}"
 	fi
-	if [ "$(sqlite3 "$db" 'SELECT count(*) FROM geodata_settings WHERE id=1;' 2>/dev/null)" != 1 ]; then
-		if ! sqlite3 "$db" "INSERT OR REPLACE INTO geodata_settings (id, record) VALUES (1, json_object('urls', json('$urls')));" >/dev/null 2>&1; then
+	if [ -n "$sets" ]; then
+		if ! sqlite3 "$db" "UPDATE geodata_settings SET record = json_set(CASE WHEN json_valid(record) THEN record ELSE '{}' END, $sets) WHERE id = 1;" >/dev/null 2>&1; then
 			echo '{"ok":false,"message":"sources_not_stored"}'
 			return 1
 		fi
 	fi
-	logger -t honk "the geodata sources are stored in the state db (the upstream list first, Loyalsoldier as the fallback)"
+	if [ "$(sqlite3 "$db" 'SELECT count(*) FROM geodata_settings WHERE id=1;' 2>/dev/null)" != 1 ]; then
+		row='[null,null]'
+		[ -n "$(geodata_configured_url)" ] && row="$urls"
+		if ! sqlite3 "$db" "INSERT OR REPLACE INTO geodata_settings (id, record) VALUES (1, json_object('urls', json('$row'), 'download', json('{\"route\":{\"route\":\"direct\"}}')));" >/dev/null 2>&1; then
+			echo '{"ok":false,"message":"sources_not_stored"}'
+			return 1
+		fi
+	fi
+	logger -t honk "the geodata sources are stored in the state db (one source, the download goes direct)"
 	echo '{"ok":true,"message":"sources_stored"}'
 }
 
-# 这个文件要试的地址：用户在 LuCI 里填了自己的地址就用那一个，否则用默认的
-# 那四个（上游原版两个 + Loyalsoldier 兜底）。
+# 这个文件要试的地址：用户在 LuCI 里选的那个来源（连同它的镜像），没选就用
+# 默认那一份（上游原版：MetaCubeX）。
 geodata_desired_list() {
-	custom=$(uci -q get "honk.main.$1_url" 2>/dev/null)
-	case "$custom" in
-	https://*.dat) printf '%s\n' "$custom" ;;
-	*) honk_geodata_sources "$1" ;;
-	esac
+	honk_geodata_configured_list "$1"
+}
+
+# 用户在 LuCI 里选过来源没有（有输出就是选过）。
+geodata_configured_url() {
+	command -v uci >/dev/null 2>&1 || return 0
+	uci -q get honk.main.geosite_url 2>/dev/null
+	uci -q get honk.main.geoip_url 2>/dev/null
 }
 
 # 把一个地址列表写成核心存的那个 JSON 数组。

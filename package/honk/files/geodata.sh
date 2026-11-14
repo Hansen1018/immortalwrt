@@ -37,36 +37,133 @@ honk_geodata_strip() {
 	return 0
 }
 
-# 地理数据的下载源列表：上游原版的两个地址在前（MetaCubeX 的 raw 与
-# jsDelivr），我们自己那份 Loyalsoldier 在后当兜底 —— 一个不通就换下一个。
+
+# 地理数据的下载源列表：上游原版那一份（MetaCubeX 的 raw 与 jsDelivr 镜像），
+# 也就是核心自己的内置列表。
 #
-# 为什么是四个而不是配置文件里的一个：核心的配置文件每个文件只能写一个地址
-# （geosite_download_url / geoip_download_url），写死一个就没有退路 —— 面板的
-# 「立即更新」当初就是只试了那个墙内不通的地址才一直失败。库里可以存最多四个
-# （MAX_URLS=4），是面板写的那种补丁（from_config=false）：配置文件不写地址
-# 时它就一直留着，核心按顺序一个一个试。
+# 面板的下拉是按「来源」（它那边叫 tag）匹配的：metacubex / metacubex-lite /
+# loyalsoldier。一个列表只能是一个来源：混着两个来源它认不出来，会落回
+# 「自定义」把几个地址一起塞进去；兜底时还可能换到另一份规则集（分类对不
+# 上，更新会被核心拒掉）。
+#
+# 所以这里一份清单就是一个来源的镜像组：raw 加几个 jsDelivr 节点，一个不通
+# 就换下一个 —— 拿到的始终是同一份文件（同一份规则集，分类才对得上）。
 #
 # 面板的「立即更新」与 LuCI 的「更新」用同一份列表、同一个顺序，两条路径拿到
 # 的字节才一样，不会互相覆盖。
 #
 # honk_geodata_sources <geosite|geoip>
-#   打印这个文件要试的地址，一个一行，按顺序。
+#   默认那一份（上游原版：MetaCubeX）的地址，一个一行，按顺序。
 honk_geodata_sources() {
 	case "$1" in
 	geosite)
 		printf '%s\n' \
 			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat' \
-			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat' \
+			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat'
+		;;
+	geoip)
+		printf '%s\n' \
+			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat' \
+			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat'
+		;;
+	*) return 1 ;;
+	esac
+}
+
+# 面板里的另一个来源：MetaCubeX 的精简版（同一个仓库，小一点的文件）。
+honk_geodata_lite_sources() {
+	case "$1" in
+	geosite)
+		printf '%s\n' \
+			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite-lite.dat' \
+			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat'
+		;;
+	geoip)
+		printf '%s\n' \
+			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip-lite.dat' \
+			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat'
+		;;
+	*) return 1 ;;
+	esac
+}
+
+# 第三个来源：Loyalsoldier 的 v2ray-rules-dat（同样是 raw 加 jsDelivr 镜像）。
+honk_geodata_loyal_sources() {
+	case "$1" in
+	geosite)
+		printf '%s\n' \
 			'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat' \
 			'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat'
 		;;
 	geoip)
 		printf '%s\n' \
-			'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat' \
-			'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat' \
 			'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat' \
 			'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat'
 		;;
 	*) return 1 ;;
 	esac
+}
+
+# 这个地址属于哪个来源：打印「来源 名 文件类型」（geosite / geoip），
+# 认不出来就返回 1。用来把用户填的一个地址还原成它那一组镜像。
+honk_geodata_source_of() {
+	case "$1" in
+	'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat'|'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat')
+		echo 'metacubex geosite' ;;
+	'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat'|'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat')
+		echo 'metacubex geoip' ;;
+	'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite-lite.dat'|'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite-lite.dat')
+		echo 'metacubex-lite geosite' ;;
+	'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip-lite.dat'|'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat')
+		echo 'metacubex-lite geoip' ;;
+	'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'|'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat')
+		echo 'loyalsoldier geosite' ;;
+	'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat'|'https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat')
+		echo 'loyalsoldier geoip' ;;
+	*) return 1 ;;
+	esac
+}
+
+# 一个地址对应的镜像组：认得出来源就用那个来源的那一组（面板的下拉才认得出是
+# 哪个来源），认不出就用它自己。
+#
+# 要的是那个来源里的哪个文件（geosite / geoip），地址本身是哪个文件不影响：
+# 用户只填了一个的时候，另一个文件也用那个来源的 —— 一个列表只能是一个来源。
+honk_geodata_list_for() {
+	entry=$(honk_geodata_source_of "$1") || { printf '%s\n' "$1"; return 0; }
+	src=${entry%% *}
+	case "$src" in
+	metacubex) honk_geodata_sources "$2" ;;
+	metacubex-lite) honk_geodata_lite_sources "$2" ;;
+	loyalsoldier) honk_geodata_loyal_sources "$2" ;;
+	*) printf '%s\n' "$1" ;;
+	esac
+}
+
+# 用户在 LuCI 里选的那一份（honk.main.<类型>_url）：选的是哪个来源就用那个
+# 来源的镜像组，没选就用默认那一份。
+#
+# 只填了一个（另一个空着）时，两个文件都用它那一个来源 —— 一个列表只能是一
+# 个来源，面板才认得出来；混着两个来源它会落回「自定义」。
+honk_geodata_configured_list() {
+	kind=$1
+	ip=""
+	site=""
+	if command -v uci >/dev/null 2>&1; then
+		ip=$(uci -q get honk.main.geoip_url 2>/dev/null)
+		site=$(uci -q get honk.main.geosite_url 2>/dev/null)
+	fi
+	if [ -z "$ip" ] && [ -z "$site" ]; then
+		honk_geodata_sources "$kind"
+		return 0
+	fi
+	url=$ip
+	[ "$kind" = geosite ] && url=$site
+	if [ -z "$url" ]; then
+		case "$kind" in
+		geosite) url=$ip ;;
+		*) url=$site ;;
+		esac
+	fi
+	honk_geodata_list_for "$url" "$kind"
 }

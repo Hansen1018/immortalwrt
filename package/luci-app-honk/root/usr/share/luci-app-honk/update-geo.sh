@@ -7,8 +7,8 @@
 TYPE="$1"
 
 # The core's own source list lives in the honk package (one list, one order:
-# the upstream's two addresses first, our Loyalsoldier mirror as the fallback),
-# so this path and the panel's own update fetch the same bytes and do not fight.
+# one source, its mirrors), so this path and the panel's own update fetch the
+# same bytes and do not fight.
 . /usr/share/honk/geodata.sh 2>/dev/null || :
 command -v honk_geodata_sources >/dev/null 2>&1 || {
 	echo "the honk package's geodata source list is missing" >&2
@@ -72,9 +72,9 @@ validate_with_core() {
 # read-only partition, and the core replaces the loaded file in place (a
 # read-only path fails the replacement, which is what the panel reported).
 #
-# The sources are the same list the core uses (the upstream's own two first,
-# our Loyalsoldier mirror as the fallback), in the same order, so this path
-# and the panel's own update fetch the same bytes and do not fight.
+# The sources are the same list the core uses (one source, its mirrors), in the
+# same order, so this path and the panel's own update fetch the same bytes and
+# do not fight.
 case "$TYPE" in
 	geoip)
 		URL="$(geodata_url geoip)"
@@ -89,14 +89,20 @@ case "$TYPE" in
 		exit 64
 		;;
 esac
-# No address configured: the default list - the upstream's own two first (the
-# raw one and jsDelivr where GitHub is slow), our Loyalsoldier mirror as the
-# fallback. One that does not answer is skipped and the next one is tried; the
-# core uses the same list in the same order (control.sh geodata-sources), so
-# both paths fetch the same bytes. A configured address is used on its own:
-# the user's own choice wins on both paths.
+# One source per list, the same one the core uses (control.sh geodata-sources):
+# the addresses of that source (raw and jsDelivr, the mirrors of one file), in
+# the same order, so both paths fetch the same bytes and do not fight. One
+# that does not answer is skipped and the next one is tried. A configured
+# address that is not one of the known sources is used on its own: the user's
+# own choice wins on both paths.
 if [ -n "$URL" ]; then
-	URLS="$URL"
+	# the known sources come with their mirrors; an older honk package does not
+	# have the helper, then the address is used on its own
+	if command -v honk_geodata_list_for >/dev/null 2>&1; then
+		URLS="$(honk_geodata_list_for "$URL" "$TYPE")"
+	else
+		URLS="$URL"
+	fi
 else
 	URLS="$(honk_geodata_sources "$TYPE")"
 fi
@@ -143,9 +149,9 @@ fi
 	mkdir -p "$(dirname "$DEST")"
 	echo "$(date '+%F %T') begin: $URLS"
 
-	# One that does not answer is skipped and the next one is tried: the default
-	# list holds four addresses (the upstream's two, then our Loyalsoldier
-	# mirror). The core walks the same list in the same order.
+	# One that does not answer is skipped and the next one is tried: the list holds
+	# the mirrors of one source (raw, then jsDelivr). The core walks the same
+	# list in the same order.
 	for URL in $URLS; do
 		if curl -fsSL --proto '=http,https' --proto-redir '=http,https' --connect-timeout 15 --max-time 240 -o "$TMP" "$URL"; then
 			break

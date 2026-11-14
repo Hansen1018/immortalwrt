@@ -25,11 +25,26 @@ const DATA_PATHS = {
 	geosite: '/etc/honk/geosite.dat'
 };
 
-// Geo data source presets. `default` keeps both URLs empty, so the sources are
-// the core's own built-in list (MetaCubeX, raw first and jsDelivr where
-// GitHub is slow) — one list for the core, update-geo.sh and this page.
+// Geo data source presets. One preset is one source (the panel calls it a
+// tag): only the addresses of that source, so the panel's own dropdown
+// recognises it instead of falling back to "custom" with a list of addresses.
+// `default` keeps both URLs empty, so the sources are the core's own built-in
+// list (MetaCubeX, raw first and jsDelivr where GitHub is slow) — one list
+// for the core, update-geo.sh and this page.
 const GEO_PRESETS = {
 	default: { geoip: '', geosite: '' },
+	metacubex: {
+		geoip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat',
+		geosite: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat'
+	},
+	'metacubex-lite': {
+		geoip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip-lite.dat',
+		geosite: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite-lite.dat'
+	},
+	loyalsoldier: {
+		geoip: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geoip.dat',
+		geosite: 'https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat'
+	},
 	v2fly: {
 		geoip: 'https://github.com/v2fly/geoip/releases/latest/download/geoip.dat',
 		geosite: 'https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat'
@@ -207,11 +222,21 @@ return view.extend({
 			const gs0 = uci.get('honk', 'main', 'geosite_url') || '';
 			const auto0 = uci.get('honk', 'main', 'geo_auto') === '1';
 			const freq0 = uci.get('honk', 'main', 'geo_auto_freq') || 'daily';
-			const preset0 = (!gi0 && !gs0) ? 'default' :
-				(gi0 === GEO_PRESETS.v2fly.geoip && gs0 === GEO_PRESETS.v2fly.geosite) ? 'v2fly' : 'custom';
+			const preset0 = (function() {
+				if (!gi0 && !gs0) return 'default';
+				for (const id of Object.keys(GEO_PRESETS)) {
+					if (id === 'default') continue;
+					const preset = GEO_PRESETS[id];
+					if (gi0 === preset.geoip && gs0 === preset.geosite) return id;
+				}
+				return 'custom';
+			})();
 
 			const presetSel = E('select', { 'class': 'cbi-input-select', 'id': 'honk-geo-preset' }, [
-				E('option', { 'value': 'default' }, 'Default (MetaCubeX)'),
+				E('option', { 'value': 'default' }, _("Default (the core's own list)")),
+				E('option', { 'value': 'metacubex' }, 'MetaCubeX'),
+				E('option', { 'value': 'metacubex-lite' }, 'MetaCubeX Lite'),
+				E('option', { 'value': 'loyalsoldier' }, 'Loyalsoldier'),
 				E('option', { 'value': 'v2fly' }, 'v2fly'),
 				E('option', { 'value': 'custom' }, _('Custom'))
 			]);
@@ -243,8 +268,11 @@ return view.extend({
 				let gi = '', gs = '';
 				const geoAuto = autoSel.value !== 'off';
 				const geoFreq = autoSel.value === 'weekly' ? 'weekly' : 'daily';
-				if (p === 'v2fly') { gi = GEO_PRESETS.v2fly.geoip; gs = GEO_PRESETS.v2fly.geosite; }
-				else if (p === 'custom') {
+				if (p !== 'custom') {
+					const preset = GEO_PRESETS[p] || GEO_PRESETS.default;
+					gi = preset.geoip; gs = preset.geosite;
+				}
+				else {
 					gi = giInput.value.trim(); gs = gsInput.value.trim();
 					for (const [label, url] of [['GeoIP URL', gi], ['GeoSite URL', gs]]) {
 						if (url) {
