@@ -360,6 +360,52 @@ honk_stale_geodata_url() {
 	done
 }
 
+# 只读诊断：面板的「立即更新」能不能成，取决于下面这几件事。核心启动时把
+# 地理数据读成资产，资产在不在、读得出来吗，库里的下载源清单是哪几个地址，
+# 配置里有没有写死地址（写了就由它说了算），升级后核心有没有重起过。
+geodata_status() {
+	db=/etc/honk/state/honk.db
+	echo "== 数据目录里的文件 =="
+	for name in geosite geoip; do
+		target="/etc/honk/$name.dat"
+		if [ -L "$target" ]; then
+			echo "  $name.dat: 符号链接（核心拒绝在它旁边落盘，更新替换不了）-> $target"
+		elif [ -s "$target" ]; then
+			echo "  $name.dat: 正常（$(stat -c %s "$target" 2>/dev/null) 字节）"
+		elif [ -f "$target" ]; then
+			echo "  $name.dat: 空壳（0 字节，核心读不出分类，当没有这份资产）"
+		else
+			echo "  $name.dat: 没有（复制一次就有了：control.sh geodata-files）"
+		fi
+	done
+	echo "== 库里的下载源清单 =="
+	urls=$(sqlite3 "$db" 'SELECT record FROM geodata_settings WHERE id=1;' 2>/dev/null | grep -o 'https\?://[^"]*' | sort)
+	if [ -n "$urls" ]; then
+		printf '%s\n' "$urls" | sed 's/^/  /'
+	else
+		echo "  （空：核心就用它自己的内置列表）"
+	fi
+	echo "== 配置里写死的地址（写了就由它说了算） =="
+	pinned=$(grep -ho "geosite_download_url[^']*'[^']*'\|geoip_download_url[^']*'[^']*'" /etc/honk/config.dae /etc/honk/system.dae 2>/dev/null | head -4)
+	if [ -n "$pinned" ]; then
+		printf '%s\n' "$pinned" | sed 's/^/  /'
+	else
+		echo "  （没有）"
+	fi
+	echo "== 状态库 =="
+	if [ -f "$db" ]; then
+		echo "  修订数: $(sqlite3 "$db" 'SELECT count(*) FROM revision;' 2>/dev/null) | head: $(sqlite3 "$db" 'SELECT count(*) FROM head;' 2>/dev/null)"
+	else
+		echo "  （还没有状态库）"
+	fi
+	echo "== 核心 =="
+	if pidof honk-core >/dev/null 2>&1; then
+		echo "  在跑（资产是它启动时读进去的：改完文件要重起它才生效）"
+	else
+		echo "  没在跑"
+	fi
+}
+
 # 把地理数据的下载源列表写进状态库 —— 面板的「立即更新」用的就是这份。
 #
 # 核心的配置文件每个文件只能写一个下载地址，写死一个就没有退路；库里可以存
@@ -464,12 +510,21 @@ prepare_runtime() {
 # 复制不了（空间不够）就留着软件包的那份：核心照样能起，只是更新替换不了。
 geodata_files() {
 	for name in geosite geoip; do
-		[ -f "/etc/honk/$name.dat" ] && continue
+		target="/etc/honk/$name.dat"
+		# 已经有一份「正常的」就不用动。正常 = 真实文件且不是空壳：
+		#   符号链接 —— 核心拒绝在符号链接旁边落盘（暂存就失败，实测报的是
+		#     staging_failed / replacement_failed），更新永远替换不了；
+		#   空壳（0 字节）—— 读不出分类，核心当没有这份资产，面板的「立即
+		#     更新」直接被拒（Loaded geodata is unavailable）。
+		# 这两种都要换成真的那份，光「在」是不够的。
+		if [ -f "$target" ] && [ ! -L "$target" ] && [ -s "$target" ]; then
+			continue
+		fi
 		src="/usr/share/v2ray/$name.dat"
 		[ -f "$src" ] || continue
 		cp "$src" "/etc/honk/.$name.dat.new" 2>/dev/null || continue
 		chmod 0644 "/etc/honk/.$name.dat.new" 2>/dev/null || :
-		mv -f "/etc/honk/.$name.dat.new" "/etc/honk/$name.dat" 2>/dev/null || rm -f "/etc/honk/.$name.dat.new" 2>/dev/null
+		mv -f "/etc/honk/.$name.dat.new" "$target" 2>/dev/null || rm -f "/etc/honk/.$name.dat.new" 2>/dev/null
 	done
 	return 0
 }
@@ -1476,6 +1531,9 @@ case "$1" in
 		geodata_files
 		echo '{"ok":true,"message":"geodata_files_ready"}'
 		;;
+	geodata-status)
+		geodata_status
+		;;
 	initialize)
 		initialize
 		;;
@@ -1492,7 +1550,7 @@ case "$1" in
 		recover
 		;;
 	*)
-		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|geodata-sources|geodata-files|repair|detach|recover}" >&2
+		echo "usage: $0 {check|diagnose|preflight|local-direct|migrate|initialize|settings|sync-db|geodata-sources|geodata-files|geodata-status|repair|detach|recover}" >&2
 		exit 2
 		;;
 esac
